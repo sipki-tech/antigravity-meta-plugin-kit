@@ -1,0 +1,36 @@
+{
+  "name": "@sipki-tech/antigravity-meta-plugin-kit",
+  "version": "0.1.0",
+  "description": "Scaffold and lint Antigravity plugins — encodes the loader's undocumented traps so authors don't rediscover them.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "antigravity-meta-plugin-kit": "bin/cli.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "templates/",
+    "skills/",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": "https://github.com/sipki-tech/antigravity-meta-plugin-kit",
+  "keywords": [
+    "antigravity",
+    "plugin",
+    "scaffold",
+    "lint",
+    "skills",
+    "hooks"
+  ],
+  "author": "sipki-tech",
+  "license": "MIT"
+}
