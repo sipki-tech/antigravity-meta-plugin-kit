@@ -33,7 +33,7 @@ jobs:
           node "$GITHUB_WORKSPACE/bin/cli.mjs" create demo-plugin
           node "$GITHUB_WORKSPACE/bin/cli.mjs" lint demo-plugin
           cd demo-plugin
-          node --test test/
+          npm test
           node bin/cli.mjs install --workspace --dry-run | grep -q "would install"
 
   dogfood:

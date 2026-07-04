@@ -102,10 +102,18 @@ test("scaffolded plugin lints clean (payload and repo-root modes)", () => {
 test("scaffolded plugin's own tests pass out of the box", () => {
   const parent = freshDir();
   const { targetDir } = scaffold({ name: "demo-plugin", parentDir: parent });
-  const res = spawnSync(process.execPath, ["--test", "test/"], {
-    cwd: targetDir,
-    encoding: "utf8",
-    timeout: 120000,
-  });
+  // Explicit file list: `node --test test/` (directory arg) breaks on Node 22.
+  // Clean env: an inherited NODE_TEST_CONTEXT from this very test runner makes
+  // the child runner report success without running anything.
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  delete env.NODE_OPTIONS;
+  const res = spawnSync(
+    process.execPath,
+    ["--test", "test/hook.test.mjs", "test/installer.test.mjs"],
+    { cwd: targetDir, encoding: "utf8", timeout: 120000, env },
+  );
   assert.equal(res.status, 0, `scaffolded tests failed:\n${res.stdout}\n${res.stderr}`);
+  assert.match(res.stdout, /# pass [1-9]/, "tests must actually run");
+  assert.match(res.stdout, /# fail 0/);
 });
