@@ -262,6 +262,12 @@ run (system prompts and messages embedded in the `agy` binary):
   Antigravity…"; plugin-defined `agents/*` supply the persona
   (`description` is the delegation surface, `developer_instructions`/body
   the system prompt, `model` the per-agent model).
+- Agents do **not** auto-surface as /slash-commands: the binary exposes
+  `GetSkillSlashCommands` and `GetSystemSlashCommands`, but no agent
+  equivalent. To give users a deterministic "/become-X" entry point, wrap
+  the spawn in a workflow or skill whose body instructs the main agent to
+  delegate to that subagent. (`/{agent_name}/` strings nearby are
+  permission-grant patterns like `command(*)`, not routes.)
 
 ### `commands/`
 
