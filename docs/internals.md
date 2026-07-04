@@ -235,6 +235,34 @@ The system prompt goes in the body.
 *Covered by:* lint (line heuristics for both formats when `agents/`
 exists); scaffold ships a TOML example only with `--with-agents`.
 
+### Subagent runtime flow
+
+`[OBSERVED 2026-07-05, binary strings of CLI 1.0.16]` How subagents actually
+run (system prompts and messages embedded in the `agy` binary):
+
+- The main agent spawns subagents via a spawn tool taking a `TypeName` and a
+  `Prompt`; built-in types include `owl` — "a deep reasoning orchestrator
+  with Planner, PlanReviewer, Researcher, InvestigationReviewer, Coder, and
+  CodeReviewer subagents".
+- The orchestrator composes **routines** — (parallelism, iteration,
+  operation) triples: single vs parallel (spawn up to N subagents),
+  non-iterative vs iterative (reviewer subagents as approval gates), over
+  operations Planning / Investigation / Coding. Plan approval flows through
+  an `implementation_plan.md` artifact with `request_feedback = true`.
+- Read-only researcher subagents report back **via a `send_message` tool**;
+  the parent reads an inbox (a "message inbox" tool exists: list / read
+  full message).
+- Write-capable Coder subagents work in an **isolated branched workspace**;
+  parallel coders implement candidates that the parent compares/synthesizes.
+- Task mode: a spawn flag runs subagents as a background batch that only
+  notifies when ALL complete; no follow-up messaging in that mode, and
+  branched workspaces are auto-deleted afterwards. Killing a subagent
+  deletes its branched workspaces but preserves logs and artifacts.
+- Every subagent's system prompt starts from "You are a subagent of
+  Antigravity…"; plugin-defined `agents/*` supply the persona
+  (`description` is the delegation surface, `developer_instructions`/body
+  the system prompt, `model` the per-agent model).
+
 ### `commands/`
 
 `[OBSERVED 2026-07-05, probe]` A compatibility shim: `agy plugin validate`
