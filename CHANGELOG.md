@@ -37,6 +37,10 @@ CLI (1.0.10, `builtin/skills/agy-customizations/docs/`).
 - Skills: `meta-hooks` rewritten to the official contracts; the other four
   updated (two worlds, official skill style guide, XML-template guidance,
   `agy plugin validate` as a companion gate).
+- Bilingual guides (`docs/guides/`, EN+RU): getting started, plugin manifest
+  & layouts, hooks, skills, subagents, rules & workflows, MCP servers,
+  testing, shipping. README rewritten with TOC, FAQ, and a validator
+  comparison table.
 
 ### Changed
 
