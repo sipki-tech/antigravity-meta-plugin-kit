@@ -264,13 +264,34 @@ test("agents/*.toml: clean scaffold passes, seeded defects fail", () => {
   const original = readFileSync(agentFile, "utf8");
 
   writeFileSync(agentFile, original.replace(/^name = ".*"$/m, 'name = "other"'));
-  assert.deepEqual(failing(lintPlugin(payload)), ["agents/*.toml minimally valid"]);
+  assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
 
   writeFileSync(agentFile, original.replace(/^description = .*$/m, ""));
-  assert.deepEqual(failing(lintPlugin(payload)), ["agents/*.toml minimally valid"]);
+  assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
 
   writeFileSync(agentFile, original + '\nbroken = """\n');
-  assert.deepEqual(failing(lintPlugin(payload)), ["agents/*.toml minimally valid"]);
+  assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
+});
+
+test("agents/*.md: markdown subagents validated (CLI 1.0.16)", () => {
+  const payload = freshPayload();
+  mkdirSync(join(payload, "agents"));
+  const agentFile = join(payload, "agents", "helper.md");
+
+  writeFileSync(
+    agentFile,
+    "---\nname: helper\ndescription: test markdown agent\n---\nYou are a helper.\n",
+  );
+  assert.ok(lintPlugin(payload).pass);
+
+  writeFileSync(agentFile, "no frontmatter\n");
+  assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
+
+  writeFileSync(
+    agentFile,
+    "---\nname: other-name\ndescription: mismatch\n---\nbody\n",
+  );
+  assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
 });
 
 test("flattenHooks: named hooks, both shapes, five events", () => {

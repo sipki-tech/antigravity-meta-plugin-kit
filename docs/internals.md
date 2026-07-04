@@ -7,7 +7,7 @@ we build the scaffolder, linter, and skills on.
 
 - `[OFFICIAL 2026-07]` — from Google's own docs shipped inside the CLI
   (`~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/`,
-  CLI 1.0.10) or verified against the `agy` binary / `agy plugin validate`.
+  CLI 1.0.16) or verified against the `agy` binary / `agy plugin validate`.
 - `[OBSERVED 2026-07]` — empirically confirmed on the Antigravity preview by
   debugging real installs; not (yet) in official docs.
 - `[MEDIUM]` — partially confirmed (binary strings, single sighting); probe
@@ -205,11 +205,13 @@ prompt hooks yet.
 
 ## Other components
 
-### Subagents — `agents/*.toml`
+### Subagents — `agents/*.toml` and `agents/*.md`
 
 `[OBSERVED 2026-07; validator-known, officially undocumented]`
 `agy plugin validate` counts them (`agents: 3 processed` on the reference),
-but no official doc describes the format. Observed fields:
+but no official doc describes the format. Two formats count:
+
+**TOML** (the reference convention):
 
 ```toml
 name = "kit-planner"                # matches the filename
@@ -219,8 +221,19 @@ model = "gemini-3.5-flash"          # per-agent model choice
 developer_instructions = """…"""    # the system prompt
 ```
 
-*Covered by:* lint (TOML-lite heuristics when `agents/` exists); scaffold
-ships an example only with `--with-agents`.
+**Markdown** `[OBSERVED 2026-07-05, probe on CLI 1.0.16]` — matches the
+community report of a JSON→Markdown transition in 1.0.16:
+
+```markdown
+---
+name: md-agent              # matches the filename
+description: what + when
+---
+The system prompt goes in the body.
+```
+
+*Covered by:* lint (line heuristics for both formats when `agents/`
+exists); scaffold ships a TOML example only with `--with-agents`.
 
 ### `commands/`
 
@@ -310,7 +323,10 @@ templates in `resources/` and link them; don't XML-ify the skill body.
 plugins), `link <marketplace> <target>`, and **`validate [path]`** — the
 official structural validator (checks skills/agents/commands/mcpServers/root
 hooks.json; ignores rules/workflows/manifest style — run both validators).
-CLI 1.0.9+: plugin installs resolve git submodules.
+CLI 1.0.9+: plugin installs resolve git submodules. Quirk: the built-in
+`agy changelog` can lag several versions behind the actual binary (a 1.0.16
+install lists 1.0.10 as its top entry) — trust `agy update`'s "current
+version" line, not the changelog header.
 
 ### GitHub-only npx distribution
 

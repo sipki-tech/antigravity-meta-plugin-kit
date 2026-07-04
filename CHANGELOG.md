@@ -6,10 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Lint: `agents/*.md` markdown subagents validated (frontmatter name +
+  description, name matches filename) — format confirmed by probe on
+  CLI 1.0.16; check renamed to `agents/* minimally valid`.
+
+### Fixed
+
+- CLI version attribution corrected to 1.0.16 across docs/templates: the
+  built-in `agy changelog` lags behind the actual binary (documented in
+  internals.md), so earlier observations were mislabeled as 1.0.10 — the
+  contracts themselves are unchanged.
+
 ## [0.2.0] — 2026-07-05
 
 Synchronized with the official customization docs Google now ships inside the
-CLI (1.0.10, `builtin/skills/agy-customizations/docs/`).
+CLI (1.0.16, `builtin/skills/agy-customizations/docs/`).
 
 ### Added
 

@@ -2,7 +2,7 @@
 // Contract: hooks are fail-open — any internal error must resolve to an
 // "allow" response with exit code 0, never break the host session.
 // Derived from antigravity-kit's io.mjs, extended for the official 2026-07
-// hook contracts (CLI 1.0.10 builtin docs): decision dialect, ephemeral
+// hook contracts (CLI 1.0.16 builtin docs): decision dialect, ephemeral
 // injection. Legacy keys (allow_tool/deny_reason) are kept alongside the
 // official ones until pre-2026-07 builds die out; unknown keys are ignored.
 

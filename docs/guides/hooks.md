@@ -4,7 +4,7 @@
 
 Hooks run external commands at fixed points of the agent loop: gate tool
 calls, inject context, keep the session alive. Contracts below are from the
-official in-CLI docs (2026-07, CLI 1.0.10), cross-checked against the binary.
+official in-CLI docs (2026-07, CLI 1.0.16), cross-checked against the binary.
 
 ## hooks.json — file shape
 

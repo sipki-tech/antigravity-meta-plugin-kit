@@ -12,9 +12,12 @@ its own system prompt, its own model. The main agent can delegate subtasks
 to it (the reference antigravity-kit ships three: a planner, an architect,
 and a reviewer).
 
-## File format
+## File formats
 
-One TOML file per subagent in `plugins/<name>/agents/`:
+Two formats count as of CLI 1.0.16 — TOML (the reference convention) and
+markdown with frontmatter (confirmed by probe, 2026-07-05).
+
+**TOML** — one file per subagent in `plugins/<name>/agents/`:
 
 ```toml
 name = "my-plugin-helper"            # must match the filename
@@ -38,6 +41,16 @@ Field notes:
   (fast model for mechanical checks, strong model for architecture).
 - **`developer_instructions`** — the full system prompt. Triple-quoted
   multiline string; keep the `"""` pairs balanced.
+
+**Markdown** — skill-like shape; the body is the system prompt:
+
+```markdown
+---
+name: my-plugin-helper
+description: Read-only helper: verifies claims against the codebase.
+---
+You are the my-plugin helper subagent. …
+```
 
 ## Design guidance
 
