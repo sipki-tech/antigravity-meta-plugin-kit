@@ -60,6 +60,19 @@ test("create then lint the repo root: all checks pass", () => {
   assert.doesNotMatch(linted.stdout, /^FAIL/m);
 });
 
+test("create --with-agents scaffolds the subagent and lints clean", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "meta-kit-cli-"));
+  const created = runCli(["create", "demo-plugin", "--with-agents"], tmp);
+  assert.equal(created.status, 0, created.stderr);
+  assert.ok(
+    existsSync(
+      join(tmp, "demo-plugin", "plugins", "demo-plugin", "agents", "demo-plugin-helper.toml"),
+    ),
+  );
+  const linted = runCli(["lint", "demo-plugin"], tmp);
+  assert.equal(linted.status, 0, linted.stdout + linted.stderr);
+});
+
 test("lint a broken payload exits 1 with a FAIL line", () => {
   const tmp = mkdtempSync(join(tmpdir(), "meta-kit-cli-"));
   runCli(["create", "demo-plugin"], tmp);

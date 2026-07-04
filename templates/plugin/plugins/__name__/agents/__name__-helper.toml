@@ -1,0 +1,12 @@
+# Subagent definition. Format is validator-known (`agy plugin validate`
+# counts agents/) but officially undocumented as of 2026-07 — fields below are
+# the observed convention; re-validate after Antigravity updates.
+name = "{{name}}-helper"
+description = "Example subagent for {{name}}: a read-only helper persona. Replace with a real specialist."
+nickname_candidates = ["Helper"]
+model = "gemini-3.5-flash"
+developer_instructions = """
+You are the {{name}} helper subagent. TODO: define the role, its constraints,
+and the exact output format. Keep it read-only unless the plugin explicitly
+needs writes.
+"""

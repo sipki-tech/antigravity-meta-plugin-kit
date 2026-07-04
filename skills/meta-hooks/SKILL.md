@@ -1,73 +1,82 @@
 ---
 name: meta-hooks
-description: Author Antigravity plugin hooks with the exact wire formats and the fail-open law. Use when the user says "meta-hooks" or works on hooks.json, PreInvocation, PreToolUse, PostToolUse, or Stop handlers.
+description: Author Antigravity plugin hooks with the official wire contracts and the fail-open law. Use when the user says "meta-hooks" or works on hooks.json, PreToolUse, PostToolUse, PreInvocation, PostInvocation, or Stop handlers.
 ---
 
 # meta-hooks — hooks that never break the host session
 
 ## Goal
 
-Ship hooks that speak the observed wire formats (2026-07, preview) and are
+Ship hooks that speak the official contracts (in-CLI docs, 2026-07) and are
 fail-open: any internal error resolves to the allow/silent response with
 exit 0.
 
 ## Instructions
 
-1. Register hooks in `hooks/hooks.json`, namespaced by the plugin name:
-   ```json
-   { "<plugin-name>": { "<Event>": [ ... ] } }
-   ```
-   Two entry shapes coexist: bare command hooks (used by `PreInvocation`,
-   `Stop`) and matcher groups `{"matcher": "run_command", "hooks": [...]}`
-   (used by `PreToolUse`, `PostToolUse`). Each command hook:
-   `{"type": "command", "command": "node \"${PLUGIN_ROOT}/scripts/x.mjs\"",
-   "timeout": 10, "statusMessage": "..."}`. Quote `${PLUGIN_ROOT}` — paths
-   contain spaces. Timeouts: 10–15s.
-2. Wire formats per event (preview — may drift; use thin adapters, never
-   destructure blindly):
-   - **PreInvocation** — input has `prompt`, or `steps[].userMessage` (take
-     the last), or `transcriptPath` (JSONL; scan recent user records as a
-     fallback). Inject context with
-     `{"injectSteps": [{"userMessage": "..."}]}`; stay silent with `{}`.
-   - **PreToolUse** (matcher e.g. `run_command`) — command line at
-     `toolCall.args.CommandLine`, cwd in the input. Respond
-     `{"allow_tool": true}` or `{"allow_tool": false, "deny_reason": "..."}`.
-   - **PostToolUse** (file-edit matchers) — edited path in the tool args.
-     Injection here is UNVERIFIED (no-ops in some builds); unknown response
-     keys are ignored, so always return `{"allow_tool": true, ...inject}` —
-     it degrades to a plain allow.
-   - **Stop** — respond `{"decision": "continue", "reason": "..."}` to keep
-     the session going, `{"decision": ""}` to allow stopping. Input may carry
-     `fullyIdle`.
-3. The fail-open law: route every script through a `runHook(handler,
-   fallback)` wrapper (see the scaffolded `scripts/lib/io.mjs`) that catches
-   everything, emits the fallback on any error, and exits 0. A throwing hook
-   breaks the user's session.
-4. Extract inputs through adapter helpers (`commandLineOf`, `promptTextOf`,
-   `cwdOf`, `editedFileOf`) that probe the known input variants — preview
-   builds disagree on field names.
-5. Test both layers: unit-test the exported logic function directly; e2e-test
-   the script with `spawnSync(process.execPath, [script], {input: JSON})`,
-   asserting exit 0 and the parsed stdout — including on junk input.
+1. Put `hooks.json` at the **plugin root** (official location; the built-in
+   `agy plugin validate` looks only there). Top-level keys are **hook names**
+   — any string; using your plugin name is a sane collision-avoiding
+   convention, not a requirement. Never put an event name at the top level
+   (that's a Claude Code settings.json shape — it does not load). A named
+   hook supports `"enabled": false` for temporary disabling.
+2. Exactly five events. `PreToolUse`/`PostToolUse` take matcher groups
+   `{"matcher": "run_command", "hooks": [...]}` (matcher: `""`/`"*"` = all
+   tools, otherwise regex); `PreInvocation`/`PostInvocation`/`Stop` take flat
+   handler lists. `SessionStart` does not exist. Handler fields: `type`
+   (optional, only `"command"`), `command` (required; runs via `sh -c`, cwd =
+   the hooks.json directory, `~` expands — quote `${PLUGIN_ROOT}` in plugin
+   scripts), `timeout` (seconds; **default 30** — set 10–15 explicitly, hooks
+   block the agent loop synchronously).
+3. Wire contracts (stdin/stdout JSON, camelCase keys; common input:
+   `conversationId`, `workspacePaths[]`, `transcriptPath`,
+   `artifactDirectoryPath`, `modelName`):
+   - **PreToolUse** — input has `toolCall.name/args` (e.g. `CommandLine`).
+     Respond `{"decision": "allow"|"deny"|"ask"|"force_ask", "reason": "…",
+     "permissionOverrides": ["command(npm test)"]}`. Legacy
+     `allow_tool`/`deny_reason` still parses; emit both dialects during the
+     transition (unknown keys are ignored) — `denyResponse()` in the
+     scaffolded `io.mjs` does this.
+   - **PostToolUse** — input carries `error` when the tool failed. Respond
+     `{}` (do not try to inject here).
+   - **PreInvocation** — respond `{"injectSteps": [{"userMessage": "…"} |
+     {"ephemeralMessage": "…"} | {"toolCall": {...}}]}` or `{}` to stay
+     silent. `ephemeralMessage` = transient system message.
+   - **PostInvocation** — same input as PreInvocation; respond
+     `{"injectSteps": [...], "terminationBehavior": "force_continue" |
+     "terminate" | ""}` — the sanctioned keep-working mechanism.
+   - **Stop** — input: `terminationReason` (`model_stop` |
+     `max_steps_exceeded` | `error`), `fullyIdle`. Respond
+     `{"decision": "continue", "reason": "…"}` to block the stop; anything
+     else allows it.
+4. The fail-open law: route every script through `runHook(handler, fallback)`
+   (scaffolded `scripts/lib/io.mjs`) — catches everything, emits the fallback
+   on any error, exits 0. A throwing hook breaks the user's session. Extract
+   inputs via the adapter helpers (`commandLineOf`, `promptTextOf`, `cwdOf`,
+   `editedFileOf`) — field names drift across builds.
+5. Test both layers: unit-test the exported logic; e2e-test the script with
+   `spawnSync(process.execPath, [script], {input: JSON.stringify(...)})`
+   asserting exit 0 and the parsed response — including on junk input.
 
 ## Definition of Done
 
 - Every hook script exits 0 and emits valid JSON on junk, empty, and
   malformed stdin.
-- `lint` passes: namespace, timeouts ≤30s, scripts exist, fail-open marker.
+- `lint` passes (named hooks, sane timeouts, scripts exist, fail-open) and
+  `agy plugin validate` reports `hooks: N processed`, not `skipped`.
 - Unit + e2e tests cover deny/allow (or inject/silent) paths.
 
 ## Constraints
 
-- Never let a hook write to stdout except the single JSON response line.
-- Never exceed a 15s timeout without a written justification; the session
-  blocks on your hook.
+- Only the single JSON response line goes to stdout.
+- Hooks run synchronously — never exceed 15s without written justification.
 
 ## Rationalizations
 
 - "My hook can just throw, the host handles it" → observed behavior: a
   failing hook degrades or breaks the session; fail-open or don't ship.
-- "The input shape is documented, I'll destructure directly" → it isn't and
-  it drifts between preview builds; adapters cost ten lines once.
-- "PostToolUse injection worked in my build" → it no-ops in others; always
-  shape the response to degrade to a plain allow.
+- "The docs are official now, I'll emit only the new response keys" → old
+  preview builds are still out there and a deny they can't parse becomes an
+  allow; emit both dialects until 0.3.0.
+- "I'll namespace hooks by my plugin name because the loader needs it" → it
+  doesn't; it's just a convention. The real structural error is an event name
+  at the top level.

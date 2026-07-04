@@ -17,15 +17,20 @@ undocumented validation.
    (kebab-case name). Preview first with `--dry-run` if unsure.
 2. Know what you got — payload anatomy under `plugins/<name>/`:
    - `plugin.json` — the manifest. `author` MUST be an object
-     (`{"name": "..."}`), never a string. Useful fields: `name`, `version`
-     (semver), `description`, `repository`, `license`, `keywords`,
-     `skills` (path), `rules` (path), `hooks` (path), and `interface`
-     (`displayName`, `shortDescription`, `category`, `capabilities[]`,
-     `defaultPrompt[]`, `brandColor`) — what the plugin manager displays.
-   - `hooks/hooks.json` — namespaced: the top-level key is the plugin name.
+     (`{"name": "..."}`), never a string. Officially only `name` is needed
+     (CLI world); the rich fields (`version`, `description`, `repository`,
+     `license`, `keywords`, `skills`/`rules`/`hooks` paths, `interface`
+     {displayName, shortDescription, category, capabilities[],
+     defaultPrompt[], brandColor}) are the authoring profile for the IDE
+     plugin-manager world — ship them.
+   - `hooks.json` — at the plugin ROOT (official location; `agy plugin
+     validate` looks only there). Top-level keys are hook names — the plugin
+     name is a convention, an event name there is an error.
    - `skills/<skill>/SKILL.md` — skills live INSIDE the plugin directory;
-     there is no global skills dir and no shim mechanism.
+     official subdirs: `scripts/`, `examples/`, `resources/`, `references/`.
    - `rules/*.md` — plain markdown, always-on session rules.
+   - `agents/*.toml` — optional subagents (`create --with-agents`); format is
+     validator-known but officially undocumented.
    - `mcp_config.json` — MCP servers; entries for optional binaries ship
      `"disabled": true`.
 3. The `installed_version.json` trap: the plugin manager writes
@@ -34,13 +39,17 @@ undocumented validation.
    writes it — never commit it to the payload.
 4. Fill the TODOs in `plugin.json` and the example skill, then re-run
    `npx github:sipki-tech/antigravity-meta-plugin-kit lint .` from the repo
-   root until every check passes.
+   root until every check passes. Also run the official structural validator:
+   `agy plugin validate plugins/<name>` — the two cover different ground
+   (it: CLI-world structure; lint: IDE traps, rules, workflows, style).
 5. Verify a real install: `node bin/cli.mjs install --workspace` in a scratch
    project, then `node bin/cli.mjs verify --workspace`.
 
 ## Definition of Done
 
 - `lint` passes with zero FAIL lines and zero warnings.
+- `agy plugin validate` reports `[ok]` with hooks/skills processed (when the
+  `agy` CLI is available).
 - `npm test` inside the scaffolded repo is green.
 - A real (or `--workspace`) install followed by `verify` is green.
 

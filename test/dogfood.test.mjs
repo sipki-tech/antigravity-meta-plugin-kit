@@ -26,6 +26,13 @@ test("dogfood: the reference antigravity-kit payload lints clean", (t) => {
     0,
     `lint rules must pass on the reference payload; failing: ${JSON.stringify(failed)}`,
   );
+  // Exactly one expected warning: the reference still keeps hooks in
+  // hooks/hooks.json (pre-official layout). Any other warning is rule drift.
+  assert.deepEqual(
+    result.warnings.map((w) => w.name),
+    ["hooks.json not at plugin root"],
+    JSON.stringify(result.warnings),
+  );
 });
 
 // Self-hosting: our own meta skills must satisfy the rules they teach.

@@ -16,7 +16,10 @@ real skill of {{name}} starts from a correct template instead of a blank file.
 2. Rewrite `description:` so it contains the phrase a user would actually say
    to trigger the skill (keep it quoted, e.g. "{{name}}-example").
 3. Replace the sections below with the real playbook: concrete steps, not
-   aspirations.
+   aspirations. Bulky material goes into the official subdirs — `scripts/`
+   (executable helpers), `references/` (long docs), `resources/` (templates);
+   link them relatively, e.g. the XML-structured
+   [prompt template](./resources/prompt-template.md).
 4. Run `npx github:sipki-tech/antigravity-meta-plugin-kit lint .` from the
    repo root after editing.
 

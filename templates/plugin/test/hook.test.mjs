@@ -13,15 +13,18 @@ const SCRIPTS = join(
   "scripts",
 );
 
-test("checkCommand denies destructive commands", () => {
+test("checkCommand denies destructive commands (both dialects)", () => {
   const res = checkCommand("rm -rf /");
+  assert.equal(res.decision, "deny");
+  assert.match(res.reason, /example-guard/);
+  // Legacy keys kept for pre-2026-07 builds; drop in 0.3.0.
   assert.equal(res.allow_tool, false);
-  assert.match(res.deny_reason, /example-guard/);
+  assert.equal(res.deny_reason, res.reason);
 });
 
 test("checkCommand allows ordinary commands", () => {
-  assert.equal(checkCommand("ls -la").allow_tool, true);
-  assert.equal(checkCommand("rm -rf ./build").allow_tool, true);
+  assert.equal(checkCommand("ls -la").decision, "allow");
+  assert.equal(checkCommand("rm -rf ./build").decision, "allow");
 });
 
 // The wire contract: JSON on stdin, JSON on stdout, exit 0 — always.
@@ -36,8 +39,9 @@ test("e2e: guard responds over stdin/stdout and is fail-open on junk", () => {
     return JSON.parse(res.stdout);
   };
   const denied = run({ toolCall: { args: { CommandLine: "rm -rf /" } } });
+  assert.equal(denied.decision, "deny");
   assert.equal(denied.allow_tool, false);
-  assert.match(denied.deny_reason, /example-guard/);
   const junk = run({ totally: "unexpected" });
+  assert.equal(junk.decision, "allow");
   assert.equal(junk.allow_tool, true);
 });

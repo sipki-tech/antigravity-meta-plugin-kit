@@ -13,9 +13,12 @@ give an agent an executable playbook, not an essay.
 ## Instructions
 
 1. Frontmatter discipline: exactly `name` and `description`. `name` must
-   equal the directory name. `description` is the ONLY text the router sees —
-   it must contain the trigger phrase a user would actually type, ideally
-   quoted: `Use when the user says "my-plugin-do-x" or asks to ...`.
+   equal the directory name and be lowercase-hyphenated (official style).
+   `description` is the ONLY text the router sees (skills load their body on
+   activation — progressive disclosure); write it in the third person, state
+   WHAT the skill does and WHEN to use it, and include the trigger phrase a
+   user would actually type, ideally quoted:
+   `Use when the user says "my-plugin-do-x" or asks to ...`.
 2. Body structure (the reference convention):
    - `## Goal` — one paragraph: what outcome this skill produces.
    - `## Instructions` — numbered, concrete steps; commands and file paths,
@@ -27,12 +30,20 @@ give an agent an executable playbook, not an essay.
      shortcuts an agent will be tempted to take.
 3. Token hygiene: a skill is loaded into a live session. Keep it under ~80
    lines; cut anything the agent can derive; prefer one sharp example over
-   three redundant ones.
-4. Placement: in an Antigravity plugin, skills live inside the plugin dir
-   (`plugins/<name>/skills/<skill>/SKILL.md`). The same format is portable —
-   copy the skill dir to `~/.claude/skills/` (Claude Code) or
-   `~/.codex/skills/` (Codex).
-5. Validate: `npx github:sipki-tech/antigravity-meta-plugin-kit lint .` —
+   three redundant ones. Bulky material goes to the official subdirs, linked
+   relatively: `scripts/` (executable helpers), `examples/`, `resources/`
+   (templates/assets), `references/` (long docs the agent reads on demand).
+4. XML sectioning: SKILL.md itself stays plain markdown. Reach for XML-style
+   tags (`<role>`, `<constraints>`, `<context>`, `<task>`, `<output_format>`)
+   only inside prompt TEMPLATES you ship in `resources/` — Google's
+   recommended shape for long, multi-part structured prompts with
+   placeholders (see the scaffolded `resources/prompt-template.md`).
+5. Placement: in an Antigravity plugin, skills live inside the plugin dir
+   (`plugins/<name>/skills/<skill>/SKILL.md`); they also surface as
+   /slash-commands automatically. The same format is portable — copy the
+   skill dir to `~/.claude/skills/` (Claude Code) or `~/.codex/skills/`
+   (Codex).
+6. Validate: `npx github:sipki-tech/antigravity-meta-plugin-kit lint .` —
    frontmatter and trigger checks are enforced.
 
 ## Definition of Done

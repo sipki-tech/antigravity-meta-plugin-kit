@@ -13,7 +13,7 @@
   ],
   "skills": "./skills",
   "rules": "./rules",
-  "hooks": "./hooks/hooks.json",
+  "hooks": "./hooks.json",
   "interface": {
     "displayName": "{{name}}",
     "shortDescription": "TODO: short description shown in the plugin manager.",

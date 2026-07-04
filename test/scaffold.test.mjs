@@ -34,10 +34,11 @@ test("scaffold creates the full expected structure", () => {
     "installer/paths.mjs",
     "installer/install.mjs",
     "plugins/demo-plugin/plugin.json",
-    "plugins/demo-plugin/hooks/hooks.json",
+    "plugins/demo-plugin/hooks.json",
     "plugins/demo-plugin/scripts/example-guard.mjs",
     "plugins/demo-plugin/scripts/lib/io.mjs",
     "plugins/demo-plugin/skills/demo-plugin-example/SKILL.md",
+    "plugins/demo-plugin/skills/demo-plugin-example/resources/prompt-template.md",
     "plugins/demo-plugin/rules/style.md",
     "plugins/demo-plugin/mcp_config.json",
     "test/hook.test.mjs",
@@ -46,6 +47,28 @@ test("scaffold creates the full expected structure", () => {
   for (const rel of expected) {
     assert.ok(existsSync(join(targetDir, rel)), `missing ${rel}`);
   }
+  // agents/ is opt-in: the format is validator-known but undocumented.
+  assert.equal(existsSync(join(targetDir, "plugins", "demo-plugin", "agents")), false);
+});
+
+test("scaffold --with-agents renders the example subagent", () => {
+  const parent = freshDir();
+  const { targetDir } = scaffold({
+    name: "demo-plugin",
+    parentDir: parent,
+    withAgents: true,
+  });
+  const toml = join(
+    targetDir,
+    "plugins",
+    "demo-plugin",
+    "agents",
+    "demo-plugin-helper.toml",
+  );
+  assert.ok(existsSync(toml));
+  assert.match(readFileSync(toml, "utf8"), /^name = "demo-plugin-helper"$/m);
+  const result = lintPlugin(join(targetDir, "plugins", "demo-plugin"));
+  assert.ok(result.pass, JSON.stringify(result.checks.filter((c) => !c.pass)));
 });
 
 test("scaffold leaves no unsubstituted placeholders", () => {

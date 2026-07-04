@@ -1,148 +1,331 @@
-# Antigravity plugin internals, as observed
+# Antigravity plugin internals
 
-Everything below was learned empirically by debugging real installs on the
-**Antigravity preview, observed 2026-07**. Preview APIs drift: when reality
-disagrees with this file, trust reality, update this file with a new
-observation date, and recalibrate the linter (the dogfood CI job keeps the
-rules honest against the reference payload,
+The canonical knowledge file of this kit: every trap, contract, and convention
+we build the scaffolder, linter, and skills on.
+
+**Provenance tags** — every claim carries one:
+
+- `[OFFICIAL 2026-07]` — from Google's own docs shipped inside the CLI
+  (`~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/`,
+  CLI 1.0.10) or verified against the `agy` binary / `agy plugin validate`.
+- `[OBSERVED 2026-07]` — empirically confirmed on the Antigravity preview by
+  debugging real installs; not (yet) in official docs.
+- `[MEDIUM]` — partially confirmed (binary strings, single sighting); probe
+  before relying on it.
+
+Preview APIs drift: when reality disagrees with this file, trust reality,
+update the entry with a new observation date, and recalibrate the linter (the
+dogfood CI job keeps rules honest against the reference payload,
 [antigravity-kit](https://github.com/sipki-tech/antigravity-kit)).
 
-Each trap notes what covers it: a lint check, a scaffold template, or docs
-only.
+## The two plugin worlds
+
+`[OFFICIAL 2026-07]` Plugins load through two distinct surfaces with different
+expectations:
+
+1. **IDE plugin-manager world** — `~/.gemini/config/plugins/<name>/`
+   (mirror: `~/.gemini/antigravity-cli/plugins/<name>/` when that dir exists).
+   Rich `plugin.json` (author object, `interface` block), managed installs,
+   `installed_version.json`. Google's own plugins live here; some ship a
+   minimal manifest (flutter's is literally `{"name": "flutter"}`), but the
+   plugin-manager UI renders the rich fields when present.
+2. **CLI customization-root world** — `.agents/plugins/<name>/` in a project
+   (also `.agent/`, `_agents/`, `_agent/`) or `~/.gemini/config/` globally.
+   Officially, `plugin.json` needs only an optional `name` (defaults to the
+   directory name); components sit at fixed relative paths: root
+   `hooks.json`, `mcp_config.json`, `rules/*.md`, `skills/<name>/SKILL.md`.
+
+This kit's linter enforces an **authoring profile** for world 1 (the strict
+manifest rules below); a payload that passes it also satisfies world 2.
 
 ## Loader traps
 
 ### 1. `installed_version.json` — the silent-ignore trap
 
-The plugin manager writes `{"version": "<semver>"}` into every installed
-plugin dir; the loader uses it to recognize the plugin as installed. A raw
-copy without it is **silently ignored** — no error, no log, the plugin just
-doesn't load. Any installer must write it; never commit it to the payload.
-*Covered by:* installer template writes it; lint warns on a committed copy,
-warns when a repo's installer never mentions it, and notes the trap in
-payload-only mode; scaffolded `verify` checks it.
+`[OBSERVED 2026-07]` The IDE plugin manager writes `{"version": "<semver>"}`
+into every installed plugin dir; the loader uses it to recognize the plugin as
+installed. A raw copy without it is **silently ignored** — no error, no log.
+Any installer must write it; never commit it to the payload.
+*Covered by:* installer template writes it; lint warns/notes; scaffolded
+`verify` checks it.
 
 ### 2. `author` must be an object
 
-`"author": "name"` (a bare string) can trip plugin validation. Use
-`"author": {"name": "..."}`.
-*Covered by:* lint check `author is an object`; template.
+`[OBSERVED 2026-07]` `"author": "name"` (a bare string) can trip plugin
+validation in the IDE world. Use `"author": {"name": "..."}` (optional
+`email`). *Covered by:* lint check; template.
 
 ### 3. Skills live inside the plugin directory
 
-`~/.gemini/config/plugins/<name>/skills/<skill>/SKILL.md`. There is NO global
-skills dir and NO shim mechanism.
-*Covered by:* template layout; `meta-skills` skill.
+`[OFFICIAL 2026-07]` `<plugin>/skills/<skill>/SKILL.md`. There is no global
+skills shim; global skills go to `~/.gemini/config/skills/` as their own
+customization, not via plugins. *Covered by:* template layout; `meta-skills`.
 
-### 4. `hooks.json` is namespaced by plugin name
+### 4. `hooks.json` — root of the plugin, named hooks
 
-The top-level key is the plugin name; hooks are defined under it.
-*Covered by:* lint check `hooks.json namespaced by plugin name`; template.
+`[OFFICIAL 2026-07]` The official location is the **plugin root**
+(`plugins/<name>/hooks.json`), and `agy plugin validate` looks only there
+(it reports `hooks: skipped (not found)` for a payload that keeps hooks in
+`hooks/hooks.json`). The IDE world additionally honors the manifest's `hooks`
+path field `[OBSERVED 2026-07]`.
 
-### 5. Two hook-entry shapes coexist
+Top-level keys are **hook names** — arbitrary strings, not the plugin name.
+Named hooks from all configs/plugins are merged; using your plugin name as the
+hook name is this kit's convention to avoid collisions, not a requirement.
+A top-level key that is an *event* name (`PreToolUse`, ...) is a structural
+error — the classic mistake when porting Claude Code `settings.json` hooks.
+Each named hook supports `"enabled": false` to disable it temporarily.
+*Covered by:* lint checks (root-location warn, named-hooks structure);
+template ships root `hooks.json`.
 
-Bare command-hook arrays (`PreInvocation`, `Stop`) and matcher groups
-`{"matcher": "...", "hooks": [...]}` (`PreToolUse`, `PostToolUse`). A linter
-or loader-shim that assumes one shape breaks on real plugins.
-*Covered by:* `flattenHooks` in the linter handles both.
+### 5. Useful `plugin.json` fields (authoring profile)
 
-### 6. Useful `plugin.json` fields
+`[OBSERVED 2026-07]` `name`, `version` (semver), `description`, `author`
+(object), `repository`, `license`, `keywords`, `skills` (path), `rules`
+(path), `hooks` (path), `interface` (`{displayName, shortDescription,
+category, capabilities[], defaultPrompt[], brandColor}` — plugin-manager UI).
+`[OFFICIAL 2026-07]` Only `name` is required-ish (defaults to dir name); the
+rest is the rich profile. *Covered by:* template; lint.
 
-`name`, `version` (semver), `description`, `author` (object), `repository`,
-`license`, `keywords`, `skills` (path), `rules` (path), `hooks` (path),
-`interface` (`{displayName, shortDescription, category, capabilities[],
-defaultPrompt[], brandColor}` — what the plugin manager displays).
-*Covered by:* template `plugin.json`; lint checks semver/interface/paths.
+## Hook contracts
 
-## Hook wire formats (preview — use thin adapters)
+`[OFFICIAL 2026-07]` unless marked otherwise. All JSON keys use **camelCase**
+(protojson). Hook commands receive JSON on stdin, answer JSON on stdout.
 
-Field names drift between preview builds; extract inputs through adapter
-helpers that probe known variants (see the scaffolded `scripts/lib/io.mjs`).
+### Events — exactly five
+
+| Event | Fires | Structure |
+|---|---|---|
+| `PreToolUse` | before a tool step | matcher group `{matcher, hooks:[...]}` |
+| `PostToolUse` | after a tool step | matcher group |
+| `PreInvocation` | before the model is called | flat handler list |
+| `PostInvocation` | after tool calls finish | flat handler list |
+| `Stop` | when the execution loop terminates | flat handler list |
+
+`SessionStart` **does not exist** (community rumor; refuted against the CLI
+binary, 2026-07 — only a TLS-internal `ClientSessionStartReq` matches).
+
+### Handler fields
+
+`type` (optional, defaults to `"command"`, the only supported type),
+`command` (required; run via `sh -c` on Unix / `cmd /c` on Windows; `~`
+expands; **cwd = the directory containing hooks.json**), `timeout` (seconds,
+**default 30**; set 10–15 explicitly — hooks run synchronously and block the
+agent loop). `statusMessage` is an IDE-world nicety `[OBSERVED 2026-07]`, not
+an official field. Reserved: `overwrite` in PreToolUse (not implemented).
+
+### Matchers (PreToolUse / PostToolUse only)
+
+`""` or `"*"` = all tools; otherwise a regex (`run_command`,
+`run_command|view_file`, `browser_.*`). Tool names are the lowercased
+`CORTEX_STEP_TYPE_*` suffixes. Matchers on flat events are ignored.
+
+### Common stdin fields
+
+```json
+{
+  "conversationId": "…",
+  "workspacePaths": ["/path/to/workspace"],
+  "transcriptPath": "…/.gemini/antigravity/transcript.jsonl",
+  "artifactDirectoryPath": "…/.gemini/antigravity/artifacts",
+  "modelName": "auto"
+}
+```
+
+The transcript/artifact directory segment differs per surface:
+`antigravity-cli/` (CLI), `antigravity/` (Antigravity 2.0),
+`antigravity-ide/` (IDE).
+
+### PreToolUse
+
+Input adds `toolCall.name`, `toolCall.args` (e.g. `CommandLine`), `stepIdx`.
+Output:
+
+```json
+{ "decision": "allow" | "deny" | "ask" | "force_ask",
+  "reason": "…", "permissionOverrides": ["command(npm test)"] }
+```
+
+`ask` prompts the user (respects the "Always Allow" cache); `force_ask`
+ignores the cache. `[OBSERVED 2026-07]` The legacy dialect
+`{"allow_tool": bool, "deny_reason": "…"}` is still parsed by current builds;
+this kit's template emits **both** dialects until the legacy one dies (unknown
+keys are ignored, so the pair is safe).
+
+### PostToolUse
+
+Input adds `stepIdx` and `error` (present if the tool failed). Output: an
+**empty object `{}`**. (Earlier guidance to return `allow_tool: true` with an
+injection payload is obsolete; injection here was never verified.)
 
 ### PreInvocation
 
-Input: `prompt`, or `steps[].userMessage` (take the last), or
-`transcriptPath` (JSONL; scan recent user-role records as a fallback).
-Inject context: `{"injectSteps": [{"userMessage": "..."}]}`. Stay silent: `{}`.
+Input adds `invocationNum`, `initialNumSteps`. Output:
 
-### PreToolUse (matcher e.g. `run_command`)
+```json
+{ "injectSteps": [
+    { "userMessage": "…" },
+    { "ephemeralMessage": "…" },
+    { "toolCall": { "name": "…", "args": {} } } ] }
+```
 
-Command line at `toolCall.args.CommandLine`; cwd in the input.
-Respond `{"allow_tool": true}` or
-`{"allow_tool": false, "deny_reason": "..."}`.
+`ephemeralMessage` is a transient system message. Empty `{}` = silent no-op.
 
-### PostToolUse (file-edit matchers)
+### PostInvocation
 
-Edited path in the tool args. Injection here is **UNVERIFIED** (no-ops in
-some builds); unknown response keys are ignored, so always return
-`{"allow_tool": true, ...inject}` — it degrades to a plain allow.
+Input: same shape as PreInvocation. Output:
+
+```json
+{ "injectSteps": [], "terminationBehavior": "force_continue" | "terminate" | "" }
+```
+
+`force_continue` re-enters the loop — the sanctioned way to build
+keep-working agents.
 
 ### Stop
 
-Respond `{"decision": "continue", "reason": "..."}` to keep the session
-going, `{"decision": ""}` to allow stopping. Input may carry `fullyIdle`.
+Input: `executionNum`, `terminationReason` (`model_stop`,
+`max_steps_exceeded`, `error`), `error`, `fullyIdle` (true when background
+tasks are done). Output: `{"decision": "continue", "reason": "…"}` blocks the
+stop (reason is injected as a system message); any other decision allows it.
 
-### Fail-open law and timeouts
+### The fail-open law
 
-Hook timeouts in `hooks.json`: 10–15s (lint allows up to 30). Scripts must be
-fail-open: wrap everything; on any parse/internal error return the
-allow/silent response and exit 0. A throwing hook breaks the host session.
-Quote `${PLUGIN_ROOT}` in commands — paths contain spaces.
-*Covered by:* `runHook()` in the template `io.mjs`; lint checks timeouts and
-a fail-open marker (heuristic: `runHook(` or a try/catch wrapper).
+`[OBSERVED 2026-07]` A throwing/non-zero hook degrades or breaks the host
+session. Wrap everything (`runHook()` in the template `io.mjs`): on any
+parse/internal error emit the allow/silent response and exit 0. Quote
+`${PLUGIN_ROOT}` in commands — paths contain spaces. `${PLUGIN_ROOT}` is the
+plugin dir `[OBSERVED 2026-07]`; official docs use hooks.json-relative
+`./scripts/...` paths (cwd = hooks.json dir) — both work in plugins.
 
-## Layouts
+### Limitations
 
-### Global
+Only `type: "command"`; hooks are synchronous and block the loop; no HTTP or
+prompt hooks yet.
 
-Plugin: `~/.gemini/config/plugins/<name>/`. MCP config:
-`~/.gemini/config/mcp_config.json`. Mirror: if
-`~/.gemini/antigravity-cli/plugins/` exists, copy the plugin there too.
+## Other components
 
-### Workspace
+### Subagents — `agents/*.toml`
 
-Plugin: `<project>/.agents/plugins/<name>/`. MCP:
-`<project>/.agents/mcp_config.json`. Workflows:
-`<project>/.agents/workflows/` (mirror into `.agent/workflows/` only when
-`.agent/` already exists).
-*Covered by:* installer template `paths.mjs`.
+`[OBSERVED 2026-07; validator-known, officially undocumented]`
+`agy plugin validate` counts them (`agents: 3 processed` on the reference),
+but no official doc describes the format. Observed fields:
+
+```toml
+name = "kit-planner"                # matches the filename
+description = "…"                   # shown in UI / routing
+nickname_candidates = ["Planner"]   # optional aliases
+model = "gemini-3.5-flash"          # per-agent model choice
+developer_instructions = """…"""    # the system prompt
+```
+
+*Covered by:* lint (TOML-lite heuristics when `agents/` exists); scaffold
+ships an example only with `--with-agents`.
+
+### `commands/`
+
+`[OBSERVED 2026-07-05, probe]` A compatibility shim: `agy plugin validate`
+reports `commands: N processed (converted to skills)` for both `.md` files
+(frontmatter + body, Claude Code slash-command style) and `.toml` files. Write
+native skills instead; `commands/` exists so `agy plugin import claude` has a
+landing zone. An empty `mcpServers: {}` map, by the way, reports as
+`skipped (not found)`.
+
+### Registry files — `skills.json` / `plugins.json`
+
+`[OFFICIAL 2026-07]` Register customizations outside default discovery
+locations; both share one schema:
+
+```json
+{ "inherits": [ { "path": "/shared/skills.json",
+                  "include_only": ["linter-.*"], "exclude": ["deprecated-.*"] } ],
+  "entries":  [ { "path": "tools/agents/skills" } ] }
+```
+
+Path resolution: `/abs`, `~/home-relative`, otherwise workspace-relative
+(repo root). Team pattern: commit skills + a workspace-relative
+`.agents/skills.json`.
+
+### Rules
+
+`[OFFICIAL 2026-07]` `GEMINI.md` / `AGENTS.md` are discovered by walking up
+from the CWD to the repo root; they are plain markdown without frontmatter,
+always active for their directory scope, deduplicated by resolved path.
+`[MEDIUM]` Rules under `.agents/rules/*.md` support frontmatter
+`trigger: always_on | model_decision` (and likely a `glob` field — present in
+binary struct tags); only `always_on` rules load unconditionally.
 
 ### Workflows
 
-Thin `.md` aliases with a `description` frontmatter that point at skills;
-they become `/slash-commands`.
-*Covered by:* lint check `workflows have description frontmatter`.
+`[OBSERVED 2026-07]` Thin `.md` aliases with a `description` frontmatter that
+become `/slash-commands` (`.agents/workflows/`; mirror `.agent/workflows/`
+only when `.agent/` exists). Note: `agy plugin validate` does **not** check
+workflows or rules — this kit's linter is the only gate there.
+`[OFFICIAL 2026-07]` Skills themselves also surface as slash commands
+(`GetSkillSlashCommands` in the binary).
 
-### SKILL.md frontmatter
+### MCP — `mcp_config.json`
 
-`name` + `description`; the description must contain the trigger phrase
-("Use when the user says ..."). Plain Agent Skills format — portable to
-Claude Code (`~/.claude/skills/`) and Codex (`~/.codex/skills/`).
-*Covered by:* lint checks 8–10 (trigger heuristic: a quoted phrase or
-"use when/for/always/this").
+`[OFFICIAL 2026-07]` Global `~/.gemini/config/mcp_config.json` or per-plugin.
+Two transports: stdio (`command`, `args`, `env`) and SSE (`serverUrl`).
+Plugin servers activate with the plugin; tools are namespaced on conflict.
+`[OBSERVED 2026-07]` Ship `"disabled": true` for entries whose `command` is
+not a universally available launcher (anything but `node`/`npx`), so a
+missing binary can't break sessions; auto-enable at install time when the
+binary is detected. Install merge must never overwrite a user-configured
+server; uninstall prunes only entries identical to what was installed.
 
-### MCP entries for optional binaries
+### Loading priority & progressive disclosure
 
-Ship `"disabled": true` so a missing binary can't break sessions; auto-enable
-only when the binary is detected at install time. On install, never overwrite
-a server the user configured; on uninstall, prune only entries identical to
-what was installed.
-*Covered by:* lint check `mcp: non-builtin commands ship disabled`; installer
-template merge/prune.
+`[OFFICIAL 2026-07]` Priority (high→low): workspace discovery → workspace
+declared configs → global (`~/.gemini/config/`) → built-in → global declared.
+Skills are not loaded into context by default — only name+description are
+injected; the body loads on activation. Hence: **the description is the
+routing surface** (this kit's trigger-phrase discipline).
 
-## Distribution traps
+### Official skill style guide
 
-### npm-packlist drops `.gitignore`
+`[OFFICIAL 2026-07]` Frontmatter: `name` (lowercase-hyphenated, = dir name),
+`description` (third-person; states **what** it does and **when** to use).
+Optional subdirs: `scripts/` (executable helpers, linked relatively),
+`examples/`, `resources/` (assets/templates), `references/` (bulky docs —
+progressive disclosure). Keep SKILL.md concise; include validation steps; do
+not restate general knowledge.
 
-`npx github:<owner>/<repo>` installs via `npm pack` of the git checkout,
-which silently excludes files named `.gitignore` and treats nested
-`package.json` manifests specially. Repos that template such files must store
-them renamed (this repo uses `_gitignore`, `_package.json`) and rename on
-generation.
-*Covered by:* scaffolder renames; `meta-ship` skill.
+### XML in prompts
 
-### npx caches the checkout
+`[OFFICIAL 2026-07]` SKILL.md itself is plain markdown — XML is not required.
+XML-style sectioning (`<role>`, `<constraints>`, `<context>`, `<task>`,
+`<output_format>`) is Google's recommended structure for long, multi-section
+prompt **templates** (see the reference kit-spec templates). Put such
+templates in `resources/` and link them; don't XML-ify the skill body.
 
-`npx github:<owner>/<repo>#main <command>` forces the latest commit; without
-`#main` users may run a stale cached version.
-*Covered by:* CLI help; `meta-ship` skill.
+## Distribution
+
+### `agy plugin` CLI
+
+`[OFFICIAL 2026-07]` `agy plugin install <target>` (supports
+`plugin@marketplace`), `uninstall`, `enable`/`disable`, `list` (tracks
+*imported* plugins only), `import [gemini|claude]` (imports Claude Code
+plugins), `link <marketplace> <target>`, and **`validate [path]`** — the
+official structural validator (checks skills/agents/commands/mcpServers/root
+hooks.json; ignores rules/workflows/manifest style — run both validators).
+CLI 1.0.9+: plugin installs resolve git submodules.
+
+### GitHub-only npx distribution
+
+`[OBSERVED 2026-07]` `npx github:<owner>/<repo>` installs via `npm pack`,
+which silently drops files named `.gitignore` and treats nested
+`package.json` specially — template such files under safe names
+(`_gitignore`, `_package.json`) and rename at generation. npx caches the
+checkout; `#main` forces the latest commit.
+
+## Refuted rumors
+
+- `SessionStart` hook event — **does not exist** (binary check, 2026-07).
+- "hooks.json must be namespaced by the plugin name" — top-level keys are
+  arbitrary hook names; the plugin-name key is just a sane convention.
+- "PostToolUse must return `{"allow_tool": true, ...inject}`" — official
+  contract expects `{}`; injection via PostToolUse was never verified.
+- "Skills require XML structure" — official skills are plain markdown; XML
+  belongs to prompt templates in `resources/`.

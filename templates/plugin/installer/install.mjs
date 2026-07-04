@@ -91,8 +91,9 @@ export function verify(opts = {}) {
     Boolean(installedVersion) && installedVersion === manifest?.version,
     `installed_version=${installedVersion} plugin.json=${manifest?.version}`,
   );
-  const hooks = readJson(join(layout.pluginDir, "hooks", "hooks.json"));
-  ok("hooks.json namespaced", Boolean(hooks?.[PLUGIN_NAME]));
+  // Official location is the plugin root; `agy plugin validate` only looks there.
+  const hooks = readJson(join(layout.pluginDir, "hooks.json"));
+  ok("hooks.json declares a named hook", Boolean(hooks?.[PLUGIN_NAME]));
   ok(
     "hook script example-guard.mjs",
     existsSync(join(layout.pluginDir, "scripts", "example-guard.mjs")),

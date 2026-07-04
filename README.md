@@ -12,9 +12,16 @@ undocumented traps.
 Antigravity's plugin loader has failure modes that are silent and
 undocumented: a plugin without `installed_version.json` is ignored without a
 word; a string `author` trips validation; a throwing hook breaks the user's
-session. This kit encodes every trap observed in the field (see
-[docs/internals.md](docs/internals.md)) into a generator and a linter, so the
-knowledge is executable instead of tribal.
+session. This kit encodes every trap — from the official in-CLI docs
+(2026-07) and from field observation (see
+[docs/internals.md](docs/internals.md)) — into a generator and a linter, so
+the knowledge is executable instead of tribal.
+
+It complements the official structural validator: run
+`agy plugin validate plugins/<name>` for CLI-world structure
+(skills/agents/commands/mcpServers/root hooks.json) and this kit's `lint` for
+the IDE-world traps plus rules, workflows, and style that the official
+validator ignores.
 
 ## Quick start
 
@@ -28,6 +35,9 @@ npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin --dry-run
 # validate an existing plugin (payload dir or scaffolded repo root)
 npx github:sipki-tech/antigravity-meta-plugin-kit lint my-plugin
 
+# also scaffold an example subagent (agents/*.toml — undocumented format)
+npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin --with-agents
+
 # force the latest commit past the npx cache
 npx github:sipki-tech/antigravity-meta-plugin-kit#main create my-plugin
 ```
@@ -38,9 +48,13 @@ npx github:sipki-tech/antigravity-meta-plugin-kit#main create my-plugin
 my-plugin/
 ├── plugins/my-plugin/          # the plugin payload
 │   ├── plugin.json             # object author, interface block, all fields
-│   ├── hooks/hooks.json        # namespaced; example fail-open PreToolUse hook
-│   ├── scripts/example-guard.mjs + scripts/lib/io.mjs  # runHook() fail-open wrapper
-│   ├── skills/my-plugin-example/SKILL.md  # correct frontmatter + trigger phrase
+│   ├── hooks.json              # at the ROOT (official location); named hooks;
+│   │                           # example fail-open PreToolUse guard
+│   ├── scripts/example-guard.mjs + scripts/lib/io.mjs  # runHook() fail-open wrapper,
+│   │                           # official decision dialect (+legacy compat)
+│   ├── skills/my-plugin-example/SKILL.md   # frontmatter + trigger phrase
+│   │   └── resources/prompt-template.md    # XML-sectioned prompt template
+│   ├── agents/                 # only with --with-agents (example subagent)
 │   ├── rules/style.md
 │   └── mcp_config.json
 ├── installer/                  # journal/dry-run, layout detection,
@@ -62,12 +76,20 @@ Exit 1 on any FAIL; warnings and notes never affect the exit code.
 | declared paths exist (skills/rules/hooks) | dangling manifest refs |
 | every skill has SKILL.md; frontmatter valid | skills that never load |
 | skill descriptions carry a trigger | skills that never route |
-| hooks.json parses / namespaced / entries well-formed | both hook shapes |
-| hook timeouts present and ≤30s | session-blocking hooks |
+| hooks.json parses / declares named hooks | event name at top level (Claude Code-style config never loads) |
+| hook entries well-formed (5 events, both shapes, type=command) | malformed handlers |
+| hook timeouts sane | non-numeric/negative timeouts |
 | hook scripts exist / fail-open | session-breaking hooks |
+| agents/*.toml minimally valid | broken subagent definitions |
 | mcp: non-builtin commands ship disabled | missing binary breaks sessions |
 | workflows have description frontmatter | broken /slash-commands |
 | rules non-empty | dead manifest ref |
+
+Warnings (never affect the exit code): hooks.json not at the plugin root
+(`agy plugin validate` won't see it), duplicated hooks.json with drift,
+missing/oversized timeouts (official default is 30s of blocking), unknown
+hook events (`SessionStart` gets a "refuted" note), skill-name style, a
+committed `installed_version.json`.
 
 The fail-open check is a heuristic (a `runHook(` wrapper or a try/catch
 around the body) — it catches the common miss, not every unsafe script.

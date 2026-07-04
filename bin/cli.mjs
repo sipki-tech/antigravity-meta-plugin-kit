@@ -6,7 +6,7 @@ import { lintTarget } from "../lib/lint.mjs";
 const HELP = `antigravity-meta-plugin-kit — scaffold and lint Antigravity plugins
 
 Usage:
-  npx github:sipki-tech/antigravity-meta-plugin-kit create <plugin-name> [--dir <parent>] [--dry-run]
+  npx github:sipki-tech/antigravity-meta-plugin-kit create <plugin-name> [--dir <parent>] [--with-agents] [--dry-run]
   npx github:sipki-tech/antigravity-meta-plugin-kit lint <plugin-dir>
   (add #main to force the latest commit: npx github:sipki-tech/antigravity-meta-plugin-kit#main <command>)
 
@@ -18,6 +18,8 @@ Commands:
 
 Options:
   --dir <parent>           Parent directory for the scaffold (default: cwd).
+  --with-agents            Also scaffold an example subagent (agents/*.toml —
+                           validator-known, officially undocumented format).
   --dry-run                Print the plan without writing anything.
   -h, --help               Show this help.
 `;
@@ -27,6 +29,7 @@ function main() {
     allowPositionals: true,
     options: {
       dir: { type: "string" },
+      "with-agents": { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -52,6 +55,7 @@ function main() {
         name,
         parentDir: values.dir ?? process.cwd(),
         dryRun,
+        withAgents: values["with-agents"],
       });
       printActions(mode, actions);
       console.log(

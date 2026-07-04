@@ -1,16 +1,28 @@
 // Shared stdin/stdout plumbing for hook handlers.
 // Contract: hooks are fail-open — any internal error must resolve to an
 // "allow" response with exit code 0, never break the host session.
+// Derived from antigravity-kit's io.mjs, extended for the official 2026-07
+// hook contracts (CLI 1.0.10 builtin docs): decision dialect, ephemeral
+// injection. Legacy keys (allow_tool/deny_reason) are kept alongside the
+// official ones until pre-2026-07 builds die out; unknown keys are ignored.
 
-export const ALLOW = { allow_tool: true };
+export const ALLOW = { decision: "allow", allow_tool: true };
 
 // Empty object = successful no-op hook result (per Antigravity semantics).
 export const SILENT = {};
 
-// Context-injection wire format used by PreInvocation hooks (verified
-// against antigravity-swarm's production hook).
+export function denyResponse(reason) {
+  return { decision: "deny", reason, allow_tool: false, deny_reason: reason };
+}
+
+// Context-injection wire formats used by PreInvocation/PostInvocation hooks.
 export function injectResponse(text) {
   return { injectSteps: [{ userMessage: text }] };
+}
+
+// Transient system message — does not persist in the conversation history.
+export function ephemeralResponse(text) {
+  return { injectSteps: [{ ephemeralMessage: text }] };
 }
 
 export async function readStdinJson(timeoutMs = 3000) {
@@ -93,6 +105,8 @@ export function transcriptPathOf(input) {
 }
 
 export function cwdOf(input) {
+  const ws = input?.workspacePaths;
+  if (Array.isArray(ws) && typeof ws[0] === "string") return ws[0];
   return (
     input?.cwd ??
     input?.workingDirectory ??

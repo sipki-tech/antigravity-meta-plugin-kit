@@ -26,7 +26,9 @@ reaches a user's session.
    const out = JSON.parse(res.stdout);
    ```
    Feed it the real event shape, junk (`{"totally": "unexpected"}`), and
-   empty stdin; a fail-open hook answers allow/silent to all of them.
+   empty stdin; a fail-open hook answers allow/silent to all of them. Assert
+   the official response keys (`decision`/`reason`) — and the legacy pair
+   (`allow_tool`/`deny_reason`) while the template still ships both.
 3. Installer tests run against throwaway roots:
    `mkdtempSync(join(tmpdir(), "x-"))` as `home` or `workspace` — never the
    real `~/.gemini`. Assert the journal contract: with `dryRun: true`,

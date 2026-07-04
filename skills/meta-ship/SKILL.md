@@ -30,10 +30,15 @@ bilingual docs.
      `ok /FAIL name (note)`, exit 1 on any fail.
    - `uninstall` — remove the plugin dirs; prune ONLY MCP entries identical
      to what was installed; user-edited entries stay.
-5. CI before any tag: matrix ubuntu+macos × Node 20/22 running `npm test`
-   plus a smoke job (install into a temp workspace, then verify). Tag only
-   on green.
-6. Docs per release: CHANGELOG.md (Keep a Changelog; park out-of-scope ideas
+5. Pre-release gates: `lint` from this kit AND the official
+   `agy plugin validate plugins/<name>` (they cover different ground) must
+   both be clean. CI before any tag: matrix ubuntu+macos × Node 20/22 running
+   `npm test` plus a smoke job (install into a temp workspace, then verify).
+   Tag only on green.
+6. Distribution beyond npx: `agy plugin install <target>` supports
+   `plugin@marketplace`; Claude Code users can be pointed at
+   `agy plugin import claude`. Mention what applies in the README.
+7. Docs per release: CHANGELOG.md (Keep a Changelog; park out-of-scope ideas
    in a `Backlog` subsection instead of half-shipping them). If the repo
    keeps bilingual READMEs, EN and RU change in the same commit, section for
    section.

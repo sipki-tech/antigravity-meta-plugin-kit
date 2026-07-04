@@ -39,7 +39,13 @@ Once pushed to GitHub, the same commands work remotely:
 npm test
 # re-lint after any payload change:
 npx github:sipki-tech/antigravity-meta-plugin-kit lint .
+# official structural validator (checks skills/agents/mcpServers/root hooks.json):
+agy plugin validate plugins/{{name}}
 ```
+
+Run both validators: `agy plugin validate` covers the CLI-world structure;
+the meta-plugin-kit linter covers the IDE-world traps plus rules, workflows,
+and style that the official validator ignores.
 
 Keep hooks fail-open (any internal error must resolve to allow, exit 0) and
 never commit `installed_version.json` — the installer writes it at install

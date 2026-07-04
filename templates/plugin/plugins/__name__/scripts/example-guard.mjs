@@ -4,7 +4,7 @@
 // internal error resolves to allow, exit 0 — a hook must never break the
 // host session).
 import { pathToFileURL } from "node:url";
-import { runHook, commandLineOf, ALLOW } from "./lib/io.mjs";
+import { runHook, commandLineOf, denyResponse, ALLOW } from "./lib/io.mjs";
 
 const DESTRUCTIVE = [
   /\brm\s+(-[a-z]*[rf][a-z]*\s+)+(\/|~)(\s|$)/i,
@@ -15,10 +15,9 @@ export function checkCommand(cmd) {
   const line = String(cmd ?? "");
   for (const re of DESTRUCTIVE) {
     if (re.test(line)) {
-      return {
-        allow_tool: false,
-        deny_reason: `[{{name}} example-guard] blocked a destructive command: ${line}`,
-      };
+      return denyResponse(
+        `[{{name}} example-guard] blocked a destructive command: ${line}`,
+      );
     }
   }
   return ALLOW;
