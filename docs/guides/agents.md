@@ -36,8 +36,11 @@ Output format: …
 Field notes:
 
 - **`name`** — kebab-case, equals the filename without `.toml`.
-- **`description`** — shown in UI; also how the orchestrator decides when to
-  delegate. Same discipline as skill descriptions: what + when.
+- **`description`** — the delegation surface: the host injects a roster of
+  installed plugins' subagents (name + description) into the main agent's
+  prompt with "you can use them just like regular skills or subagents"
+  (confirmed against all three Antigravity binaries, 2026-07). Same
+  discipline as skill descriptions: what + when.
 - **`model`** — subagents don't inherit the parent's model; pick per role
   (fast model for mechanical checks, strong model for architecture).
 - **`developer_instructions`** — the full system prompt. Triple-quoted

@@ -38,6 +38,17 @@ expectations:
 This kit's linter enforces an **authoring profile** for world 1 (the strict
 manifest rules below); a payload that passes it also satisfies world 2.
 
+`[OBSERVED 2026-07-06]` The plugin machinery of both apps lives in their Go
+sidecars (`Antigravity.app/Contents/Resources/bin/language_server`,
+`Antigravity IDE.app/…/extensions/antigravity/bin/language_server_macos_arm`)
+— the `installed_version.json` literal sits there, not in the Electron/JS
+layers. All three binaries share the same five hook events; `SessionStart`
+is absent from every one of them (the only matches are TLS internals in agy
+and JS pan-gesture handlers in the app bundles). A `gemini-extension.json`
+found in some Google plugin dirs is referenced only by agy's
+import-from-gemini path — a Gemini CLI compatibility artifact, not something
+the Antigravity loader needs `[MEDIUM]`.
+
 ## Loader traps
 
 ### 1. `installed_version.json` — the silent-ignore trap
@@ -262,6 +273,15 @@ run (system prompts and messages embedded in the `agy` binary):
   Antigravity…"; plugin-defined `agents/*` supply the persona
   (`description` is the delegation surface, `developer_instructions`/body
   the system prompt, `model` the per-agent model).
+- **Auto-delegation of plugin subagents is CONFIRMED** `[OBSERVED
+  2026-07-06, strings of all three binaries: agy CLI, Antigravity 2.0
+  language_server, Antigravity IDE language_server]`: a prompt template
+  injected into the main agent lists every installed plugin with its
+  skills and subagents ("Plugins are bundles of customizations… agents/: a
+  directory containing subagents that can be invoked to help with tasks…
+  You can use them just like regular skills or subagents"), rendering each
+  agent's name + description. Your agent's `description` therefore routes
+  delegation exactly like a skill description routes activation.
 - Agents do **not** auto-surface as /slash-commands: the binary exposes
   `GetSkillSlashCommands` and `GetSystemSlashCommands`, but no agent
   equivalent. To give users a deterministic "/become-X" entry point, wrap

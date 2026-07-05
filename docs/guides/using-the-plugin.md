@@ -65,10 +65,11 @@ you:  meta-ship — release checklist
   `installed_version.json` (verify checks it).
 - **`/meta-*` unknown in a project** — run the `workflows` command in that
   project; global install alone doesn't add per-project aliases.
-- **A subagent doesn't spawn** — runtime spawnability of plugin-defined
-  agents is MEDIUM-confidence (see [internals](../internals.md)); the
-  workflow body still guides the main agent to do the job itself — report
-  what you see via `/meta-scout`.
+- **A subagent doesn't spawn** — the host injects installed plugins'
+  subagents into the main agent's prompt (confirmed, see
+  [internals](../internals.md)), so a miss usually means the plugin didn't
+  load (run `verify`) or the phrasing didn't match the agent's description;
+  the workflow body still guides the main agent to do the job itself.
 - **Stale version** — `npx github:sipki-tech/antigravity-meta-plugin-kit#main update`
   (mind the `#main`: npx caches).
 
