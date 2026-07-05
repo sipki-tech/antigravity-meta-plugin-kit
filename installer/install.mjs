@@ -126,6 +126,13 @@ export function verify(opts = {}) {
     (a) => !existsSync(join(layout.pluginDir, "agents", a)),
   );
   ok("all agents installed", missingAgents.length === 0, missingAgents.join(", "));
+  // Official location is the plugin root; `agy plugin validate` only looks there.
+  const hooks = readJson(join(layout.pluginDir, "hooks.json"));
+  ok("hooks.json declares a named hook", Boolean(hooks?.[PLUGIN_NAME]));
+  ok(
+    "hook script walkthrough-guard.mjs",
+    existsSync(join(layout.pluginDir, "scripts", "walkthrough-guard.mjs")),
+  );
   if (layout.scope === "workspace") {
     const wfDir = workflowsDirs(opts.workspace)[0];
     const missingWorkflows = listWorkflows().filter(

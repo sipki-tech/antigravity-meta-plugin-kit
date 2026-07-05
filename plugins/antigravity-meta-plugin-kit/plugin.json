@@ -17,6 +17,8 @@
     "subagents"
   ],
   "skills": "./skills",
+  "rules": "./rules",
+  "hooks": "./hooks.json",
   "interface": {
     "displayName": "Antigravity Meta Plugin Kit",
     "shortDescription": "Plugin-authoring toolkit: meta skills, audit/hook/drift subagents, /meta-* workflows.",
@@ -24,7 +26,9 @@
     "capabilities": [
       "Skills",
       "Subagents",
-      "Workflow"
+      "Workflow",
+      "Rules",
+      "Hooks"
     ],
     "defaultPrompt": [
       "meta-scaffold start a new Antigravity plugin",

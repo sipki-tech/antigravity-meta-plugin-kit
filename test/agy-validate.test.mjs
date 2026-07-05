@@ -56,6 +56,7 @@ test("agy plugin validate: own payload [ok] with 5 skills and 4 agents", (t) => 
   assert.match(out, /\[ok\]/, out);
   assert.match(out, /skills\s*:\s*5 processed/, out);
   assert.match(out, /agents\s*:\s*4 processed/, out);
+  assert.match(out, /hooks\s*:\s*\d+ processed/, out);
 });
 
 test("agy plugin validate: reference payload still [ok]", (t) => {

@@ -1,0 +1,12 @@
+{
+  "antigravity-meta-plugin-kit": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/scripts/walkthrough-guard.mjs\"",
+        "timeout": 10,
+        "statusMessage": "meta-kit: walkthrough guard"
+      }
+    ]
+  }
+}

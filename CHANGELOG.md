@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Payload: `rules/artifacts.md` — artifact quality conventions (exact
+  verification commands, Rollback section for risky plans, both validators
+  for plugin payloads, walkthrough discipline) layered on top of the
+  built-in Planning Mode prompts via the rules-precedence mechanism.
+- Payload: `walkthrough-guard` Stop hook — when the session produced an
+  implementation plan but no `walkthrough.md`, the model's idle stop is
+  turned into a nudge to write it (fail-open; silent on user stops, running
+  background work, or any ambiguity; self-clearing once walkthrough.md
+  exists). Root `hooks.json`, canonical `io.mjs`, installer verify checks,
+  unit + e2e tests.
+- `docs/internals.md`: Artifacts section — types, ArtifactMetadata fields,
+  the embedded Planning Mode / `<PLAN>` prompt formats, markdown validator,
+  customization levers.
+
 ## [0.3.0] — 2026-07-05
 
 The meta-kit becomes a full Antigravity plugin — and its own third dogfood
