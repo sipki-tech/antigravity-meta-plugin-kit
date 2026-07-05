@@ -176,6 +176,7 @@ English and Russian:
 | Guide | Covers |
 |---|---|
 | [Getting started](docs/guides/getting-started.md) · [RU](docs/guides/getting-started.ru.md) | scaffold → lint → test → install → verify, end to end |
+| [Using the plugin](docs/guides/using-the-plugin.md) · [RU](docs/guides/using-the-plugin.ru.md) | day-to-day: skill triggers, /meta-* commands, delegating to subagents, troubleshooting |
 | [Plugin manifest & layouts](docs/guides/plugin-manifest.md) · [RU](docs/guides/plugin-manifest.ru.md) | plugin.json fields, the two plugin worlds, installed_version.json, install paths |
 | [Hooks](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | all five events, official wire contracts, fail-open law, matchers, timeouts |
 | [Skills](docs/guides/skills.md) · [RU](docs/guides/skills.ru.md) | SKILL.md anatomy, trigger phrases, progressive disclosure, XML prompt templates |

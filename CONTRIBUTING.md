@@ -38,9 +38,10 @@ For the full dogfood suite, check out the reference repo as a sibling
 |---|---|
 | CLI | `bin/cli.mjs` |
 | Scaffolder / linter / helpers | `lib/` |
-| Scaffold templates | `templates/plugin/` (note `_gitignore`, `_package.json` — npm-packlist workaround) |
-| Meta skills | `skills/` |
-| Trap registry | `docs/internals.md` |
+| The kit's own installer | `installer/` |
+| The kit's plugin payload (skills, subagents, workflows) | `plugins/antigravity-meta-plugin-kit/` |
+| Scaffold templates | `templates/plugin/` (note `_gitignore`, `_package.json` — npm-packlist workaround; deliberately NOT shared with `installer/` — scaffolds must be standalone) |
+| Trap registry / guides | `docs/internals.md`, `docs/guides/` (bilingual) |
 | Tests | `test/` |
 
 ## Commits

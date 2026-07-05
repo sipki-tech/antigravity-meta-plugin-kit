@@ -176,6 +176,7 @@ Warnings (на код выхода не влияют): hooks.json не в кор
 | Гайд | Что покрывает |
 |---|---|
 | [Getting started](docs/guides/getting-started.md) · [RU](docs/guides/getting-started.ru.md) | scaffold → lint → test → install → verify, от и до |
+| [Работа с плагином](docs/guides/using-the-plugin.md) · [RU](docs/guides/using-the-plugin.ru.md) | повседневность: триггеры скиллов, команды /meta-*, делегирование сабагентам, troubleshooting |
 | [Манифест и раскладки](docs/guides/plugin-manifest.md) · [RU](docs/guides/plugin-manifest.ru.md) | поля plugin.json, два мира плагинов, installed_version.json, пути установки |
 | [Хуки](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | все пять событий, официальные wire-контракты, закон fail-open, матчеры, таймауты |
 | [Скиллы](docs/guides/skills.md) · [RU](docs/guides/skills.ru.md) | анатомия SKILL.md, триггер-фразы, progressive disclosure, XML-шаблоны промптов |
