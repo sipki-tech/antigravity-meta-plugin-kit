@@ -367,6 +367,50 @@ XML-style sectioning (`<role>`, `<constraints>`, `<context>`, `<task>`,
 prompt **templates** (see the reference kit-spec templates). Put such
 templates in `resources/` and link them; don't XML-ify the skill body.
 
+## Artifacts
+
+`[OBSERVED 2026-07-06, strings of CLI 1.0.16 / app language_servers]`
+Artifacts (implementation plans, walkthroughs, task lists) are **ordinary
+files written via the file tool into the artifact directory**
+(`artifactDirectoryPath` from the hook input) — the file-write tool's own
+description instructs: "When creating an artifact, always provide an
+ArtifactMetadata."
+
+- **Types** (proto enum): `IMPLEMENTATION_PLAN`, `WALKTHROUGH`, `TASK`,
+  `OTHER`.
+- **Key ArtifactMetadata fields**: `artifact_type`, `artifact_name`,
+  `request_feedback` (surfaces the review UI), `user_facing`,
+  `artifact_version`, `artifact_comments`.
+- **The governing prompts live in the binary**: a Planning Mode Go template
+  (conditional on `.IsAutonomous`) — research → write
+  `implementation_plan.md` with `request_feedback = true` +
+  `user_facing = true` ("the user will automatically see it — DO NOT
+  re-summarize") → STOP for approval → execute → verify → write/update
+  `walkthrough.md`; plus a `<PLAN>` block that dictates the exact plan
+  format: `## [Goal Description]`, `## User Review Required` (GitHub
+  alerts), `## Open Questions`, `## Proposed Changes` grouped by component
+  with `#### [MODIFY]/[NEW]/[DELETE] <file>`, `## Verification Plan` →
+  `### Automated Tests` / `### Manual Verification`. Walkthrough format:
+  changes made / what was tested / validation results, embed
+  screenshots/recordings, update rather than re-create. `/learn` follows the
+  same pattern with a `learning_proposal.md` artifact.
+- **A markdown validator** checks artifact files on write and feeds
+  warnings back to the agent ("Markdown validation warnings were found in
+  the artifact file you just created/edited").
+- **Customization levers**: (1) Artifact Review Mode setting —
+  `always-proceed | agent-decides | asks-for-review`, global and
+  per-project `[OFFICIAL, app.md]`; (2) user rules — injected with "these
+  rules take precedence over any following instructions", so
+  GEMINI.md/AGENTS.md/plugin rules can extend or override the plan format
+  declaratively; (3) skills/workflows imposing their own artifact
+  conventions (the reference kit-spec pipeline does); (4) hooks —
+  PreInvocation `ephemeralMessage` checklists, or a Stop hook reading
+  `artifactDirectoryPath` to block stopping until a walkthrough exists.
+  The embedded templates themselves are not editable; config fields like
+  `disable_artifact_reminders`, `inject_artifact_reminder_threshold_map`,
+  `artifact_review_mode`, `session_summary_prompt_override` exist in the
+  proto surface `[MEDIUM — settings location unconfirmed]`.
+
 ## Distribution
 
 ### `agy plugin` CLI
