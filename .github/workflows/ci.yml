@@ -20,6 +20,16 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Unit tests
         run: npm test
+      - name: Self-lint — the kit's own payload passes its own linter
+        run: node bin/cli.mjs lint .
+      - name: Smoke — install the kit plugin into a temp workspace
+        run: |
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          node "$GITHUB_WORKSPACE/bin/cli.mjs" install --workspace
+          node "$GITHUB_WORKSPACE/bin/cli.mjs" verify --workspace
+          node "$GITHUB_WORKSPACE/bin/cli.mjs" uninstall --workspace
+          test ! -e .agents/plugins/antigravity-meta-plugin-kit
       - name: Smoke — create --dry-run writes nothing
         run: |
           tmp="$(mktemp -d)"

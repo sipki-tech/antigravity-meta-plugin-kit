@@ -35,9 +35,21 @@ test("dogfood: the reference antigravity-kit payload lints clean", (t) => {
   );
 });
 
-// Self-hosting: our own meta skills must satisfy the rules they teach.
+// Self-hosting: the kit's own payload must satisfy everything it enforces.
+const OWN_PAYLOAD = join(ROOT, "plugins", "antigravity-meta-plugin-kit");
+
+test("own payload lints clean: zero FAILs, zero warnings", () => {
+  const result = lintPlugin(OWN_PAYLOAD, { repoRoot: ROOT });
+  assert.deepEqual(
+    result.checks.filter((c) => !c.pass),
+    [],
+    JSON.stringify(result.checks.filter((c) => !c.pass)),
+  );
+  assert.deepEqual(result.warnings, [], JSON.stringify(result.warnings));
+});
+
 test("own skills pass the skill checks", () => {
-  const skillsDir = join(ROOT, "skills");
+  const skillsDir = join(OWN_PAYLOAD, "skills");
   const skillDirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name);
@@ -51,4 +63,15 @@ test("own skills pass the skill checks", () => {
     assert.ok(hasTrigger(data.description), `${s}: description lacks a trigger`);
     assert.match(body, /## Rationalizations/, `${s}: missing Rationalizations`);
   }
+});
+
+test("own subagents: 3 toml + 1 md, versions in sync", () => {
+  const agents = readdirSync(join(OWN_PAYLOAD, "agents")).sort();
+  assert.equal(agents.filter((a) => a.endsWith(".toml")).length, 3);
+  assert.equal(agents.filter((a) => a.endsWith(".md")).length, 1);
+  const manifest = JSON.parse(
+    readFileSync(join(OWN_PAYLOAD, "plugin.json"), "utf8"),
+  );
+  const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+  assert.equal(manifest.version, pkg.version, "plugin.json vs package.json");
 });

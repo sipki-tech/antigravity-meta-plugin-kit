@@ -19,6 +19,7 @@ MCP-серверы.
 
 - [Зачем это существует](#зачем-это-существует)
 - [Быстрый старт](#быстрый-старт)
+- [Установка как плагина](#установка-как-плагина)
 - [Что генерирует `create`](#что-генерирует-create)
 - [Проверки линтера](#проверки-линтера)
 - [Гайды](#гайды)
@@ -77,6 +78,41 @@ node bin/cli.mjs install --workspace       # установка в ./.agents/
 node bin/cli.mjs verify --workspace        # именованные health-чеки
 agy plugin validate plugins/my-plugin      # официальный структурный валидатор
 ```
+
+## Установка как плагина
+
+Мета-кит сам является Antigravity-плагином. Установка приносит пять
+meta-скиллов, четырёх авторских сабагентов и slash-команды `/meta-*` прямо в
+ваши сессии:
+
+```bash
+# глобально — все воркспейсы (после — перезапустите Antigravity)
+npx github:sipki-tech/antigravity-meta-plugin-kit install
+
+# в проект (коммитится)
+npx github:sipki-tech/antigravity-meta-plugin-kit install --workspace
+
+# добавить /meta-* slash-команды в текущий проект (после глобальной установки)
+npx github:sipki-tech/antigravity-meta-plugin-kit workflows
+
+# health-чек / обновление / удаление
+npx github:sipki-tech/antigravity-meta-plugin-kit verify
+npx github:sipki-tech/antigravity-meta-plugin-kit#main update
+npx github:sipki-tech/antigravity-meta-plugin-kit uninstall
+```
+
+Сабагенты в комплекте (форматы: 3× TOML, 1× markdown — валидируются оба):
+
+| Сабагент | Права | Работа |
+|---|---|---|
+| `meta-payload-auditor` | только чтение | семантический аудит payload за пределами механического линта: качество триггеров, логика хук-скриптов, связность манифеста |
+| `meta-hook-smith` | только чтение | конструирует хуки: выбирает событие, отдаёт блок hooks.json, fail-open скрипт и тесты |
+| `meta-trap-scout` | терминал (read-effect) | находит дрейф между установленным Antigravity и задокументированными контрактами |
+| `meta-doc-mirror` | пишет только `*.ru.md` | держит двуязычные доки в синхроне, секция к секции |
+
+Workflow-обёртки дают им детерминированные входы: `/meta-audit`,
+`/meta-hook`, `/meta-scout`, `/meta-mirror` (агенты не становятся
+slash-командами сами — см. [гайд по сабагентам](docs/guides/agents.ru.md)).
 
 ## Что генерирует `create`
 
@@ -151,11 +187,12 @@ Warnings (на код выхода не влияют): hooks.json не в кор
 
 ## Скиллы
 
-Пять портируемых Agent Skills в [skills/](skills/): `meta-scaffold`,
-`meta-hooks`, `meta-skills`, `meta-test`, `meta-ship`. Чтобы использовать,
-скопируйте папку скилла в каталог скиллов вашего хоста — `~/.claude/skills/`
-(Claude Code), `~/.codex/skills/` (Codex), `<project>/.agents/skills/` или в
-`skills/` вашего плагина (Antigravity).
+Пять портируемых Agent Skills в
+[plugins/antigravity-meta-plugin-kit/skills/](plugins/antigravity-meta-plugin-kit/skills/):
+`meta-scaffold`, `meta-hooks`, `meta-skills`, `meta-test`, `meta-ship`.
+[Установка плагина](#установка-как-плагина) доставляет их в Antigravity; для
+других хостов скопируйте папку скилла в `~/.claude/skills/` (Claude Code)
+или `~/.codex/skills/` (Codex).
 
 ## Реестр ловушек
 

@@ -6,11 +6,40 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-05
+
+The meta-kit becomes a full Antigravity plugin — and its own third dogfood
+consumer (self-lint + `agy plugin validate` on its own payload in CI).
+
 ### Added
 
+- Plugin payload `plugins/antigravity-meta-plugin-kit/`: the five meta
+  skills (moved from the repo root), four authoring subagents —
+  `meta-payload-auditor` (read-only semantic payload review),
+  `meta-hook-smith` (hook design: event choice, hooks.json, fail-open
+  script, tests), `meta-trap-scout` (drift detection against the installed
+  Antigravity), `meta-doc-mirror` (EN/RU parity keeper; markdown-format
+  agent) — and four workflow wrappers `/meta-audit`, `/meta-hook`,
+  `/meta-scout`, `/meta-mirror`.
+- Installer (`installer/` + CLI commands `install | update | verify |
+  uninstall | workflows`, with `--workspace` and `--dry-run`): journal-based,
+  writes `installed_version.json`, mirrors into `antigravity-cli/plugins`
+  when present, installs workflow aliases into `.agents/workflows`
+  (+ `.agent/workflows` mirror), reference-style `update` versioning.
+- Tests: installer suite (12 new cases), strengthened dogfood (own payload
+  lints with zero FAILs/warnings; plugin.json version synced with
+  package.json), `agy plugin validate` case for the own payload
+  (skills: 5, agents: 4), CLI install/verify e2e.
+- CI: self-lint step and install→verify→uninstall smoke in the test matrix.
 - Lint: `agents/*.md` markdown subagents validated (frontmatter name +
   description, name matches filename) — format confirmed by probe on
   CLI 1.0.16; check renamed to `agents/* minimally valid`.
+
+### Changed
+
+- Skills moved: `skills/meta-*` → `plugins/antigravity-meta-plugin-kit/skills/meta-*`
+  (the payload must be self-contained). If you copied skills from the repo
+  root, update your path.
 
 ### Fixed
 

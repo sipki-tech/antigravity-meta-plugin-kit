@@ -18,6 +18,7 @@ English | [Русский](README.ru.md)
 
 - [Why this exists](#why-this-exists)
 - [Quick start](#quick-start)
+- [Install as a plugin](#install-as-a-plugin)
 - [What `create` generates](#what-create-generates)
 - [Lint checks](#lint-checks)
 - [Guides](#guides)
@@ -77,6 +78,41 @@ node bin/cli.mjs install --workspace       # install into ./.agents/
 node bin/cli.mjs verify --workspace        # named health checks
 agy plugin validate plugins/my-plugin      # official structural validator
 ```
+
+## Install as a plugin
+
+The meta-kit is itself an Antigravity plugin. Installing it puts the five
+meta skills, four authoring subagents, and the `/meta-*` slash commands
+straight into your sessions:
+
+```bash
+# global — all workspaces (restart Antigravity afterwards)
+npx github:sipki-tech/antigravity-meta-plugin-kit install
+
+# per-project (committable)
+npx github:sipki-tech/antigravity-meta-plugin-kit install --workspace
+
+# add /meta-* slash commands to the current project (after a global install)
+npx github:sipki-tech/antigravity-meta-plugin-kit workflows
+
+# health check / refresh / removal
+npx github:sipki-tech/antigravity-meta-plugin-kit verify
+npx github:sipki-tech/antigravity-meta-plugin-kit#main update
+npx github:sipki-tech/antigravity-meta-plugin-kit uninstall
+```
+
+The bundled subagents (formats: 3× TOML, 1× markdown — both validated):
+
+| Subagent | Rights | Job |
+|---|---|---|
+| `meta-payload-auditor` | read-only | semantic payload review beyond mechanical lint: trigger quality, hook-script logic, manifest coherence |
+| `meta-hook-smith` | read-only | designs hooks: picks the event, produces the hooks.json block, a fail-open script, and tests |
+| `meta-trap-scout` | terminal (read-effect) | detects drift between the installed Antigravity and the documented contracts |
+| `meta-doc-mirror` | writes `*.ru.md` only | keeps bilingual docs in lockstep, section for section |
+
+Workflow wrappers give them deterministic entry points: `/meta-audit`,
+`/meta-hook`, `/meta-scout`, `/meta-mirror` (agents don't auto-surface as
+slash commands — see the [subagents guide](docs/guides/agents.md)).
 
 ## What `create` generates
 
@@ -151,11 +187,12 @@ English and Russian:
 
 ## Skills
 
-Five portable Agent Skills under [skills/](skills/): `meta-scaffold`,
-`meta-hooks`, `meta-skills`, `meta-test`, `meta-ship`. To use them, copy a
-skill directory into your host's skills dir — `~/.claude/skills/` (Claude
-Code), `~/.codex/skills/` (Codex), `<project>/.agents/skills/` or your
-plugin's `skills/` (Antigravity).
+Five portable Agent Skills under
+[plugins/antigravity-meta-plugin-kit/skills/](plugins/antigravity-meta-plugin-kit/skills/):
+`meta-scaffold`, `meta-hooks`, `meta-skills`, `meta-test`, `meta-ship`. The
+[plugin install](#install-as-a-plugin) delivers them into Antigravity; for
+other hosts, copy a skill directory into `~/.claude/skills/` (Claude Code)
+or `~/.codex/skills/` (Codex).
 
 ## The trap registry
 

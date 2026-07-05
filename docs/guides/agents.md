@@ -10,7 +10,8 @@
 A subagent is a specialized persona your plugin brings along: its own name,
 its own system prompt, its own model. The main agent can delegate subtasks
 to it (the reference antigravity-kit ships three: a planner, an architect,
-and a reviewer).
+and a reviewer). Live examples in both formats ship with this kit:
+[plugins/antigravity-meta-plugin-kit/agents/](../../plugins/antigravity-meta-plugin-kit/agents/).
 
 ## File formats
 

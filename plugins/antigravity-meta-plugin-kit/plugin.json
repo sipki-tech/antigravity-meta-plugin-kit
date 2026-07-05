@@ -1,0 +1,37 @@
+{
+  "name": "antigravity-meta-plugin-kit",
+  "version": "0.3.0",
+  "description": "Author Antigravity plugins with guardrails: five meta skills and four specialist subagents that know the loader's traps.",
+  "author": {
+    "name": "sipki-tech"
+  },
+  "repository": "https://github.com/sipki-tech/antigravity-meta-plugin-kit",
+  "license": "MIT",
+  "keywords": [
+    "antigravity",
+    "plugin",
+    "meta",
+    "scaffold",
+    "lint",
+    "skills",
+    "subagents"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "Antigravity Meta Plugin Kit",
+    "shortDescription": "Plugin-authoring toolkit: meta skills, audit/hook/drift subagents, /meta-* workflows.",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Skills",
+      "Subagents",
+      "Workflow"
+    ],
+    "defaultPrompt": [
+      "meta-scaffold start a new Antigravity plugin",
+      "meta-hooks design a PreToolUse guard",
+      "/meta-audit review my plugin payload",
+      "/meta-scout check Antigravity for spec drift"
+    ],
+    "brandColor": "#5B8DEF"
+  }
+}

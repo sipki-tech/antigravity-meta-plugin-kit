@@ -16,10 +16,26 @@ function runCli(args, cwd) {
   });
 }
 
-test("--help exits 0 and prints usage", () => {
+test("--help exits 0 and prints usage incl. installer commands", () => {
   const res = runCli(["--help"]);
   assert.equal(res.status, 0);
   assert.match(res.stdout, /Usage:/);
+  for (const cmd of ["install", "update", "verify", "uninstall", "workflows"]) {
+    assert.match(res.stdout, new RegExp(`^  ${cmd}`, "m"), cmd);
+  }
+});
+
+test("install --workspace then verify --workspace via CLI", () => {
+  const ws = mkdtempSync(join(tmpdir(), "meta-kit-cli-"));
+  const dry = runCli(["install", "--workspace", "--dry-run"], ws);
+  assert.equal(dry.status, 0);
+  assert.match(dry.stdout, /would install/);
+  assert.equal(existsSync(join(ws, ".agents")), false, "dry-run must not write");
+  const installed = runCli(["install", "--workspace"], ws);
+  assert.equal(installed.status, 0, installed.stderr);
+  const verified = runCli(["verify", "--workspace"], ws);
+  assert.equal(verified.status, 0, verified.stdout + verified.stderr);
+  assert.match(verified.stdout, /verify: all checks passed/);
 });
 
 test("no command prints help and exits 1", () => {
