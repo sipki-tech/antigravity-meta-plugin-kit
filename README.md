@@ -185,6 +185,7 @@ English and Russian:
 | [MCP servers](docs/guides/mcp.md) · [RU](docs/guides/mcp.ru.md) | mcp_config.json, stdio/SSE transports, the disabled:true convention, merge/prune |
 | [Testing](docs/guides/testing.md) · [RU](docs/guides/testing.ru.md) | zero-dep node --test doctrine, hook e2e, dry-run assertions |
 | [Shipping](docs/guides/shipping.md) · [RU](docs/guides/shipping.ru.md) | npx github: distribution, update pattern, marketplaces, CI gates, versioning |
+| [Researching Antigravity](docs/guides/researching-antigravity.md) · [RU](docs/guides/researching-antigravity.ru.md) | where every fact came from: built-in docs, binary strings, validator probes — and how to repeat it after updates |
 
 ## Skills
 

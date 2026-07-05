@@ -185,6 +185,7 @@ Warnings (на код выхода не влияют): hooks.json не в кор
 | [MCP-серверы](docs/guides/mcp.md) · [RU](docs/guides/mcp.ru.md) | mcp_config.json, транспорты stdio/SSE, конвенция disabled:true, merge/prune |
 | [Тестирование](docs/guides/testing.md) · [RU](docs/guides/testing.ru.md) | zero-dep доктрина node --test, e2e хуков, dry-run-ассерты |
 | [Релиз](docs/guides/shipping.md) · [RU](docs/guides/shipping.ru.md) | дистрибуция npx github:, паттерн update, маркетплейсы, CI-гейты, версии |
+| [Исследование Antigravity](docs/guides/researching-antigravity.md) · [RU](docs/guides/researching-antigravity.ru.md) | откуда взят каждый факт: встроенные доки, строки бинарников, пробы валидатором — и как повторять после обновлений |
 
 ## Скиллы
 
