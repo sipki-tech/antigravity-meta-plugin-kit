@@ -7,7 +7,8 @@ we build the scaffolder, linter, and skills on.
 
 - `[OFFICIAL 2026-07]` — from Google's own docs shipped inside the CLI
   (`~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/`,
-  CLI 1.0.16) or verified against the `agy` binary / `agy plugin validate`.
+  CLI 1.0.16; re-read unchanged on 1.1.1) or verified against the `agy`
+  binary / `agy plugin validate`.
 - `[OBSERVED 2026-07]` — empirically confirmed on the Antigravity preview by
   debugging real installs; not (yet) in official docs.
 - `[MEDIUM]` — partially confirmed (binary strings, single sighting); probe
@@ -56,9 +57,24 @@ the Antigravity loader needs `[MEDIUM]`.
 `[OBSERVED 2026-07]` The IDE plugin manager writes `{"version": "<semver>"}`
 into every installed plugin dir; the loader uses it to recognize the plugin as
 installed. A raw copy without it is **silently ignored** — no error, no log.
-Any installer must write it; never commit it to the payload.
+Any installer must write it; never commit it to the payload. The literal now
+also appears in the agy binary itself, not just the app sidecars
+`[OBSERVED 2026-07-11, 1.1.1 strings]`.
 *Covered by:* installer template writes it; lint warns/notes; scaffolded
 `verify` checks it.
+
+### 1b. Updates wipe third-party plugins from `~/.gemini/config/plugins/`
+
+`[OBSERVED 2026-07-10, single event — MEDIUM]` During an Antigravity
+re-provisioning (the same moment Google's `science` plugin was installed;
+`plugins/` dir mtime matches), third-party plugin dirs
+(`antigravity-kit`, `antigravity-meta-plugin-kit`) were **deleted** from
+`~/.gemini/config/plugins/` while Google-managed ones survived. CLI logs
+prove both loaded fine on 2026-07-06 and were gone by 2026-07-11. An
+installed plugin is therefore not durable across updates: re-run `verify`
+after any Antigravity/app update and keep `update` one command away.
+*Covered by:* `verify` command (named checks); this kit's docs recommend a
+post-update `verify` habit.
 
 ### 2. `author` must be an object
 
@@ -103,7 +119,7 @@ rest is the rich profile. *Covered by:* template; lint.
 `[OFFICIAL 2026-07]` unless marked otherwise. All JSON keys use **camelCase**
 (protojson). Hook commands receive JSON on stdin, answer JSON on stdout.
 
-### Events — exactly five
+### Events — five documented, a sixth surfacing
 
 | Event | Fires | Structure |
 |---|---|---|
@@ -113,8 +129,16 @@ rest is the rich profile. *Covered by:* template; lint.
 | `PostInvocation` | after tool calls finish | flat handler list |
 | `Stop` | when the execution loop terminates | flat handler list |
 
-`SessionStart` **does not exist** (community rumor; refuted against the CLI
-binary, 2026-07 — only a TLS-internal `ClientSessionStartReq` matches).
+`SessionStart` **flipped** `[OBSERVED 2026-07-11, strings of CLI 1.1.1]`:
+refuted against the 1.0.16 binary (only TLS noise matched), it now has a
+full proto family — `SessionStartHookArgs`/`SessionStartHookResult`,
+`GetSessionStartHookArgs`, protojson field `sessionStartHookArgs`,
+`sessionStartHookNames`. It is still absent from the builtin docs (they
+document exactly five events) and its wire contract is unverified by a live
+probe — treat as `[MEDIUM]` until one lands. The linter keeps warning on it
+with this status. A `SupportsHook` RPC (`GetSupportsHookResult`) also
+appeared — looks like an internal capability check, not a sixth user-facing
+event `[MEDIUM]`.
 
 ### Handler fields
 
@@ -426,6 +450,20 @@ CLI 1.0.9+: plugin installs resolve git submodules. Quirk: the built-in
 install lists 1.0.10 as its top entry) — trust `agy update`'s "current
 version" line, not the changelog header.
 
+### CLI 1.1.1 surface additions
+
+`[OBSERVED 2026-07-11]` New since 1.0.16: subcommands `agy agent` /
+`agy agents` (list available agents) and `agy models` (list available
+models); session flags `--agent <name>` (pick an agent for the session),
+`-p`/`--print` (run a single prompt non-interactively; `--print-timeout`,
+default 5m — the enabler for scripted probes), `--prompt-interactive`/`-i`,
+`--mode accept-edits|plan`, `--sandbox`, and
+`--dangerously-skip-permissions`. Hook discovery logs are explicit in
+`~/.gemini/antigravity-cli/cli.log` (rotated per run):
+`Loaded hooks.json from <path>: N named hooks, M total handlers` per file
+and a `loaded N named hooks from M hooks.json file(s)` summary — the
+fastest way to see whether your plugin's hooks actually loaded.
+
 ### GitHub-only npx distribution
 
 `[OBSERVED 2026-07]` `npx github:<owner>/<repo>` installs via `npm pack`,
@@ -436,7 +474,12 @@ checkout; `#main` forces the latest commit.
 
 ## Refuted rumors
 
-- `SessionStart` hook event — **does not exist** (binary check, 2026-07).
+- ~~`SessionStart` hook event does not exist~~ — **flipped in 1.1.1**: the
+  refutation was correct for 1.0.16 (binary check, 2026-07), but the 1.1.1
+  binary carries the full proto family (see Events above). This is the
+  provenance discipline working as designed: rank-6 community sources were
+  eventually right, yet only rank 1–3 evidence could say *when* — dated
+  observations, not beliefs.
 - "hooks.json must be namespaced by the plugin name" — top-level keys are
   arbitrary hook names; the plugin-name key is just a sane convention.
 - "PostToolUse must return `{"allow_tool": true, ...inject}`" — official

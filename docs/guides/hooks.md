@@ -4,7 +4,8 @@
 
 Hooks run external commands at fixed points of the agent loop: gate tool
 calls, inject context, keep the session alive. Contracts below are from the
-official in-CLI docs (2026-07, CLI 1.0.16), cross-checked against the binary.
+official in-CLI docs (2026-07, CLI 1.0.16; unchanged on 1.1.1),
+cross-checked against the binary.
 
 ## hooks.json — file shape
 
@@ -57,8 +58,10 @@ Code `settings.json` shape and it does not load here.
 | `PostInvocation` | after tool calls finish | flat list |
 | `Stop` | when the loop terminates | flat list |
 
-There is **no `SessionStart`** — a community rumor refuted against the
-binary (2026-07).
+`SessionStart` is in flux: refuted against the 1.0.16 binary, it appeared in
+the 1.1.1 binary's proto surface (2026-07-11) but is still undocumented and
+its wire contract is unverified — don't ship hooks on it yet (the linter
+warns with this status).
 
 Matchers (grouped events only): `""`/`"*"` = all tools; otherwise regex
 (`run_command`, `run_command|view_file`, `browser_.*`). Tool names are the
@@ -81,8 +84,9 @@ Input adds `toolCall.name`, `toolCall.args` (e.g. `CommandLine`), `stepIdx`.
 
 `decision`: `allow` | `deny` | `ask` (prompt the user; respects the
 "Always Allow" cache) | `force_ask` (ignore the cache). Legacy dialect
-`{"allow_tool": bool, "deny_reason": "…"}` still parses on current builds —
-the scaffolded `denyResponse()` emits **both** dialects until 0.3.0.
+`{"allow_tool": bool, "deny_reason": "…"}` still parses on current builds
+(re-checked on 1.1.1) — the scaffolded `denyResponse()` emits **both**
+dialects until the legacy one dies.
 
 ### PostToolUse — observe results
 
@@ -130,6 +134,7 @@ every script through a wrapper that catches **everything** and emits the
 safe response with exit 0 — the scaffolded `scripts/lib/io.mjs`:
 
 ```js
+import { pathToFileURL } from "node:url";
 import { runHook, commandLineOf, denyResponse } from "./lib/io.mjs";
 
 export function checkCommand(cmd) {

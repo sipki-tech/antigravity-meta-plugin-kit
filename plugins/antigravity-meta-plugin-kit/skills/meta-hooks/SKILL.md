@@ -19,10 +19,12 @@ exit 0.
    convention, not a requirement. Never put an event name at the top level
    (that's a Claude Code settings.json shape — it does not load). A named
    hook supports `"enabled": false` for temporary disabling.
-2. Exactly five events. `PreToolUse`/`PostToolUse` take matcher groups
-   `{"matcher": "run_command", "hooks": [...]}` (matcher: `""`/`"*"` = all
-   tools, otherwise regex); `PreInvocation`/`PostInvocation`/`Stop` take flat
-   handler lists. `SessionStart` does not exist. Handler fields: `type`
+2. Exactly five documented events. `PreToolUse`/`PostToolUse` take matcher
+   groups `{"matcher": "run_command", "hooks": [...]}` (matcher: `""`/`"*"` =
+   all tools, otherwise regex); `PreInvocation`/`PostInvocation`/`Stop` take
+   flat handler lists. `SessionStart` surfaced in the 1.1.1 binary but is
+   undocumented with an unverified wire contract — do not ship hooks on it
+   yet. Handler fields: `type`
    (optional, only `"command"`), `command` (required; runs via `sh -c`, cwd =
    the hooks.json directory, `~` expands — quote `${PLUGIN_ROOT}` in plugin
    scripts), `timeout` (seconds; **default 30** — set 10–15 explicitly, hooks
@@ -76,7 +78,8 @@ exit 0.
   failing hook degrades or breaks the session; fail-open or don't ship.
 - "The docs are official now, I'll emit only the new response keys" → old
   preview builds are still out there and a deny they can't parse becomes an
-  allow; emit both dialects until 0.3.0.
+  allow; emit both dialects until the legacy one dies (still parsed on
+  1.1.1).
 - "I'll namespace hooks by my plugin name because the loader needs it" → it
   doesn't; it's just a convention. The real structural error is an event name
   at the top level.

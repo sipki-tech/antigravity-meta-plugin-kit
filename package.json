@@ -1,6 +1,6 @@
 {
   "name": "@sipki-tech/antigravity-meta-plugin-kit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Scaffold and lint Antigravity plugins — encodes the loader's undocumented traps so authors don't rediscover them.",
   "private": true,
   "type": "module",

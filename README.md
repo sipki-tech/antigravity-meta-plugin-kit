@@ -81,7 +81,7 @@ agy plugin validate plugins/my-plugin      # official structural validator
 
 ## Install as a plugin
 
-The meta-kit is itself an Antigravity plugin. Installing it puts the five
+The meta-kit is itself an Antigravity plugin. Installing it puts the six
 meta skills, four authoring subagents, and the `/meta-*` slash commands
 straight into your sessions:
 
@@ -152,7 +152,7 @@ Exit 1 on any FAIL; warnings and notes never affect the exit code.
 | hook entries well-formed (5 events, both shapes, type=command) | malformed handlers |
 | hook timeouts sane | non-numeric/negative timeouts |
 | hook scripts exist / fail-open | session-breaking hooks |
-| agents/*.toml minimally valid | broken subagent definitions |
+| agents/* minimally valid (toml + md) | broken subagent definitions |
 | mcp: non-builtin commands ship disabled | missing binary breaks sessions |
 | workflows have description frontmatter | broken /slash-commands |
 | rules non-empty | dead manifest ref |
@@ -160,7 +160,8 @@ Exit 1 on any FAIL; warnings and notes never affect the exit code.
 Warnings (never affect the exit code): hooks.json not at the plugin root
 (`agy plugin validate` won't see it), duplicated hooks.json with drift,
 missing/oversized timeouts (official default is 30s of blocking), unknown
-hook events (`SessionStart` gets a "refuted" note), skill-name style, a
+hook events (`SessionStart` gets an "unverified contract" note — it surfaced
+in the 1.1.1 binary but is still undocumented), skill-name style, a
 committed `installed_version.json`.
 
 The fail-open check is a heuristic (a `runHook(` wrapper or a try/catch
@@ -178,7 +179,7 @@ English and Russian:
 | [Getting started](docs/guides/getting-started.md) · [RU](docs/guides/getting-started.ru.md) | scaffold → lint → test → install → verify, end to end |
 | [Using the plugin](docs/guides/using-the-plugin.md) · [RU](docs/guides/using-the-plugin.ru.md) | day-to-day: skill triggers, /meta-* commands, delegating to subagents, troubleshooting |
 | [Plugin manifest & layouts](docs/guides/plugin-manifest.md) · [RU](docs/guides/plugin-manifest.ru.md) | plugin.json fields, the two plugin worlds, installed_version.json, install paths |
-| [Hooks](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | all five events, official wire contracts, fail-open law, matchers, timeouts |
+| [Hooks](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | the five documented events (+ SessionStart status), official wire contracts, fail-open law, matchers, timeouts |
 | [Skills](docs/guides/skills.md) · [RU](docs/guides/skills.ru.md) | SKILL.md anatomy, trigger phrases, progressive disclosure, XML prompt templates |
 | [Subagents](docs/guides/agents.md) · [RU](docs/guides/agents.ru.md) | agents/*.toml format, models, prompts, validation |
 | [Rules & workflows](docs/guides/rules-workflows.md) · [RU](docs/guides/rules-workflows.ru.md) | GEMINI.md/AGENTS.md hierarchy, rule triggers, workflow slash-commands |
@@ -189,9 +190,10 @@ English and Russian:
 
 ## Skills
 
-Five portable Agent Skills under
+Six portable Agent Skills under
 [plugins/antigravity-meta-plugin-kit/skills/](plugins/antigravity-meta-plugin-kit/skills/):
-`meta-scaffold`, `meta-hooks`, `meta-skills`, `meta-test`, `meta-ship`. The
+`meta-scaffold`, `meta-hooks`, `meta-skills`, `meta-agents`, `meta-test`,
+`meta-ship`. The
 [plugin install](#install-as-a-plugin) delivers them into Antigravity; for
 other hosts, copy a skill directory into `~/.claude/skills/` (Claude Code)
 or `~/.codex/skills/` (Codex).
@@ -201,7 +203,9 @@ or `~/.codex/skills/` (Codex).
 [docs/internals.md](docs/internals.md) is the canonical record of every
 loader trap, hook wire format, and component convention — each claim tagged
 `[OFFICIAL 2026-07]`, `[OBSERVED 2026-07]`, or `[MEDIUM]`, with a
-"Refuted rumors" section (no, `SessionStart` does not exist). The linter
+"Refuted rumors" section that dates its own reversals (`SessionStart`:
+refuted on 1.0.16, surfaced in the 1.1.1 binary, contract still
+unverified). The linter
 implements it; the skills and guides reference it.
 
 ## Relationship to `agy plugin validate`

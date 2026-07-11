@@ -54,7 +54,7 @@ test("own skills pass the skill checks", () => {
   const skillDirs = readdirSync(skillsDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name);
-  assert.equal(skillDirs.length, 5, "exactly the 5 meta skills");
+  assert.equal(skillDirs.length, 6, "exactly the 6 meta skills");
   for (const s of skillDirs) {
     const file = join(skillsDir, s, "SKILL.md");
     assert.ok(existsSync(file), `${s} missing SKILL.md`);

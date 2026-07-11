@@ -16,7 +16,7 @@ drive it from a live Antigravity session.
 3. Health check anytime:
    `npx github:sipki-tech/antigravity-meta-plugin-kit verify`.
 
-## The five skills — fire by phrasing
+## The six skills — fire by phrasing
 
 Skills route on their descriptions; say the trigger (or ask in its terms):
 
@@ -25,6 +25,7 @@ Skills route on their descriptions; say the trigger (or ask in its terms):
 | "meta-scaffold — start a new plugin" | `meta-scaffold` | scaffold walkthrough: create → fill TODOs → lint |
 | "meta-hooks — design a guard for rm -rf" | `meta-hooks` | event choice + official wire contracts + fail-open law |
 | "meta-skills — review my SKILL.md" | `meta-skills` | frontmatter/trigger/structure discipline |
+| "meta-agents — add a subagent" | `meta-agents` | both formats, delegation-surface descriptions, workflow wrappers |
 | "meta-test — cover my hook with tests" | `meta-test` | the zero-dep node --test doctrine |
 | "meta-ship — prepare the release" | `meta-ship` | npx distribution, gates, versioning checklist |
 

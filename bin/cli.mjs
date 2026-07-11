@@ -30,7 +30,7 @@ Commands:
                            ./<plugin-name>/ — payload, installer, tests, CI.
   lint <plugin-dir>        Validate a plugin payload (or a scaffolded repo
                            root) against the known loader traps.
-  install                  Install the meta-kit plugin itself: 5 meta skills,
+  install                  Install the meta-kit plugin itself: 6 meta skills,
                            4 authoring subagents, /meta-* workflows.
   update                   Refresh an existing install, show old -> new version.
   verify                   Health-check an install (named checks, exit 1 on fail).

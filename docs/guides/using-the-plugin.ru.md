@@ -16,7 +16,7 @@
 3. Health-чек в любой момент:
    `npx github:sipki-tech/antigravity-meta-plugin-kit verify`.
 
-## Пять скиллов — срабатывают по формулировке
+## Шесть скиллов — срабатывают по формулировке
 
 Скиллы маршрутизируются по описаниям; произнесите триггер (или спросите в
 его терминах):
@@ -26,6 +26,7 @@
 | «meta-scaffold — начни новый плагин» | `meta-scaffold` | проводка по скаффолду: create → TODO → lint |
 | «meta-hooks — спроектируй гард на rm -rf» | `meta-hooks` | выбор события + официальные контракты + закон fail-open |
 | «meta-skills — поревьюй мой SKILL.md» | `meta-skills` | дисциплина frontmatter/триггеров/структуры |
+| «meta-agents — добавь сабагента» | `meta-agents` | оба формата, description как поверхность делегирования, workflow-обёртки |
 | «meta-test — покрой мой хук тестами» | `meta-test` | zero-dep доктрина node --test |
 | «meta-ship — готовим релиз» | `meta-ship` | npx-дистрибуция, гейты, чеклист версий |
 

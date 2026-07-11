@@ -74,7 +74,9 @@ npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin --with-agents
 This kit's `lint` checks every `agents/*.toml` (when the dir exists):
 `name` present and matching the filename, `description` present, balanced
 `"""` fences — line heuristics, not a TOML parser. The official validator
-counts them: `agy plugin validate` → `agents: N processed`.
+counts them: `agy plugin validate` → `agents: N processed`. On CLI 1.1.1+,
+`agy agents` lists the agents available to sessions and `agy --agent <name>`
+selects one — the quickest live check that yours registered.
 
 ## Pitfalls
 

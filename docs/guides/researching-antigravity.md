@@ -18,9 +18,14 @@ playbook.
 | 5 | Official web | antigravity.google/docs, codelabs, agentskills.io, agents.md | narratives, tutorials; less precise than 1 |
 | 6 | Community web | blogs, agentpedia, reddit | leads and rumors — **verify against 1–3 before believing** |
 
-Case in point: the web insisted a `SessionStart` hook exists; the binaries
-refute it (agy matches are TLS `ClientSessionStartReq`, app matches are JS
-`onPanSessionStart` gesture handlers). Rank 6 never overrides rank 2.
+Case in point — now a two-act drift lesson: the web insisted a
+`SessionStart` hook exists; the 1.0.16 binaries refuted it (agy matches were
+TLS `ClientSessionStartReq`, app matches JS `onPanSessionStart` gesture
+handlers). Then the 1.1.1 binary grew a real
+`SessionStartHookArgs`/`SessionStartHookResult` proto family (2026-07-11).
+The rumor was eventually right — but only rank 1–3 evidence could say
+*when*, and the wire contract still needs a live probe. Rank 6 never
+overrides rank 2; it only files leads.
 
 ## Source 1 — built-in docs
 

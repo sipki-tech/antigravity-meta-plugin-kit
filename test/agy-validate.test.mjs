@@ -47,14 +47,14 @@ test("agy plugin validate counts the --with-agents subagent", (t) => {
   assert.match(out, /agents\s*:\s*1 processed/, out);
 });
 
-test("agy plugin validate: own payload [ok] with 5 skills and 4 agents", (t) => {
+test("agy plugin validate: own payload [ok] with 6 skills and 4 agents", (t) => {
   if (!AGY) return t.skip("agy not on PATH");
   const { status, out } = validate(
     join(ROOT, "plugins", "antigravity-meta-plugin-kit"),
   );
   assert.equal(status, 0, out);
   assert.match(out, /\[ok\]/, out);
-  assert.match(out, /skills\s*:\s*5 processed/, out);
+  assert.match(out, /skills\s*:\s*6 processed/, out);
   assert.match(out, /agents\s*:\s*4 processed/, out);
   assert.match(out, /hooks\s*:\s*\d+ processed/, out);
 });

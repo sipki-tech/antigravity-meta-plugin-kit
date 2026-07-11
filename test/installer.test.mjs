@@ -19,8 +19,8 @@ import { detectLayout, workflowsDirs, PLUGIN_NAME } from "../installer/paths.mjs
 const CLI = join(dirname(fileURLToPath(import.meta.url)), "..", "bin", "cli.mjs");
 const freshDir = () => mkdtempSync(join(tmpdir(), "meta-kit-install-"));
 
-test("payload inventory: 5 skills, 4 agents, 4 workflows", () => {
-  assert.equal(listSkills().length, 5);
+test("payload inventory: 6 skills, 4 agents, 4 workflows", () => {
+  assert.equal(listSkills().length, 6);
   assert.equal(listAgents().length, 4);
   assert.equal(listWorkflows().length, 4);
 });

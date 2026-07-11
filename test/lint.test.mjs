@@ -166,7 +166,7 @@ test("enabled:false is not treated as an event", () => {
   assert.deepEqual(warningNames(result), []);
 });
 
-test("unknown event warns; SessionStart gets the refuted note", () => {
+test("unknown event warns; SessionStart gets the unverified-contract note", () => {
   const payload = freshPayload();
   editJson(join(payload, "hooks.json"), (doc) => {
     doc["demo-plugin"].SessionStart = [
@@ -177,7 +177,7 @@ test("unknown event warns; SessionStart gets the refuted note", () => {
   assert.ok(result.pass, JSON.stringify(failing(result)));
   const w = result.warnings.find((x) => x.name === "unknown hook event");
   assert.ok(w, JSON.stringify(result.warnings));
-  assert.match(w.note, /refuted/);
+  assert.match(w.note, /unverified/);
 });
 
 test("hook script without a fail-open marker fails", () => {

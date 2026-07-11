@@ -4,10 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.4.0] — 2026-07-11
+
+Recalibrated against Antigravity CLI **1.1.1** (research pipeline re-run:
+builtin docs diff, binary strings, validator probes) and a sixth meta skill.
 
 ### Added
 
+- **`meta-agents` skill** — authoring subagents in both validator-known
+  formats (TOML + markdown), description-as-delegation-surface discipline,
+  workflow wrappers for /become-X entry points, `agy agents` live checks.
+  The payload is now 6 skills + 4 agents.
+- `docs/internals.md`, 1.1.1 findings: **SessionStart flipped** — refuted
+  on the 1.0.16 binary, it now has a full proto family
+  (`SessionStartHookArgs`/`Result`, 2026-07-11) while staying absent from
+  the builtin docs; kept `[MEDIUM]` until a live probe lands. `SupportsHook`
+  internal RPC noted. New CLI surface recorded: `agy agent/agents`,
+  `agy models`, `--agent`, `-p/--print` (+ hook-discovery log lines as a
+  debugging tool).
+- `docs/internals.md`, new trap **1b**: an Antigravity re-provisioning
+  wiped third-party plugins from `~/.gemini/config/plugins/` while
+  Google-managed ones survived (observed 2026-07-10; CLI logs prove both
+  kits loaded on 07-06 and were gone by 07-11) — run `verify` after every
+  update.
 - Payload: `rules/artifacts.md` — artifact quality conventions (exact
   verification commands, Rollback section for risky plans, both validators
   for plugin payloads, walkthrough discipline) layered on top of the
@@ -21,6 +40,22 @@ All notable changes to this project are documented here. The format follows
 - `docs/internals.md`: Artifacts section — types, ArtifactMetadata fields,
   the embedded Planning Mode / `<PLAN>` prompt formats, markdown validator,
   customization levers.
+
+### Changed
+
+- Linter: the `SessionStart` warning no longer says "refuted" — new text
+  states it surfaced in the 1.1.1 binary with an unverified wire contract;
+  it stays out of `KNOWN_EVENTS` until probed live.
+- Guides/skills/README refreshed to the 1.1.1 state (legacy PreToolUse
+  dialect re-checked as still parsed; `agy agents` listing in the
+  subagents guide; SessionStart status everywhere it was mentioned).
+
+### Fixed
+
+- Stale docs: hooks guide promised dropping the legacy dialect "until
+  0.3.0" (now: until the legacy dialect dies); README lint table still
+  said `agents/*.toml` for the check renamed to `agents/*` in 0.3.0; the
+  hooks-guide io.mjs snippet lacked the `pathToFileURL` import.
 
 ## [0.3.0] — 2026-07-05
 
@@ -143,7 +178,9 @@ CLI (1.0.16, `builtin/skills/agy-customizations/docs/`).
 - Lint profiles (`--cli-world`) relaxing the rich-manifest rules.
 - Linting `skills.json`/`plugins.json` registries and global
   `~/.gemini/config/hooks.json`.
-- A `meta-agents` skill once the subagent TOML format is documented.
+- ~~A `meta-agents` skill once the subagent TOML format is documented~~
+  (shipped in 0.4.0 — the format stayed undocumented, the observations
+  matured instead).
 - Upstreaming io.mjs v2 + root hooks.json migration to antigravity-kit.
 - Optional workflows/ scaffolding in `create`.
 - `lint --fix` for mechanically correctable findings.
