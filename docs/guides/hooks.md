@@ -25,7 +25,7 @@ Code `settings.json` shape and it does not load here.
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/scripts/example-guard.mjs\"",
+            "command": "node ./scripts/example-guard.mjs",
             "timeout": 10,
             "statusMessage": "my-plugin: guard"
           }
@@ -33,7 +33,7 @@ Code `settings.json` shape and it does not load here.
       }
     ],
     "Stop": [
-      { "type": "command", "command": "node \"${PLUGIN_ROOT}/scripts/keep-going.mjs\"", "timeout": 10 }
+      { "type": "command", "command": "node ./scripts/keep-going.mjs", "timeout": 10 }
     ]
   }
 }
@@ -48,20 +48,20 @@ Code `settings.json` shape and it does not load here.
   explicitly; hooks block the loop synchronously). `statusMessage` is an
   IDE nicety, not an official field.
 
-## The five events
+## The six events
 
 | Event | Fires | Structure |
 |---|---|---|
+| `SessionStart` | at conversation start | flat list |
 | `PreToolUse` | before a tool step | matcher group |
 | `PostToolUse` | after a tool step | matcher group |
 | `PreInvocation` | before the model is called | flat list |
 | `PostInvocation` | after tool calls finish | flat list |
 | `Stop` | when the loop terminates | flat list |
 
-`SessionStart` is in flux: refuted against the 1.0.16 binary, it appeared in
-the 1.1.1 binary's proto surface (2026-07-11) but is still undocumented and
-its wire contract is unverified — don't ship hooks on it yet (the linter
-warns with this status).
+`SessionStart` is the odd one out: absent from the official docs (they list
+five), refuted against the 1.0.16 binary, then confirmed live on 1.1.1
+(probe, 2026-07-12) — it fires once per conversation start.
 
 Matchers (grouped events only): `""`/`"*"` = all tools; otherwise regex
 (`run_command`, `run_command|view_file`, `browser_.*`). Tool names are the
@@ -73,6 +73,12 @@ JSON on stdin → JSON on stdout. All keys camelCase. Common input fields:
 `conversationId`, `workspacePaths[]`, `transcriptPath`,
 `artifactDirectoryPath`, `modelName` (transcript dir segment differs per
 surface: `antigravity-cli/`, `antigravity/`, `antigravity-ide/`).
+
+### SessionStart — conversation start (undocumented; probed 2026-07-12)
+
+Input: the common fields only — no event-specific additions. Respond `{}`
+(the only verified response; a result proto exists, so richer responses may
+work — probe before relying on them).
 
 ### PreToolUse — gate tool calls
 
@@ -154,7 +160,10 @@ the single JSON response line goes to stdout.
 - Event name as a top-level key → hook never loads (lint FAILs it).
 - `hooks/hooks.json` instead of the root → invisible to `agy plugin
   validate` (lint warns).
-- Unquoted `${PLUGIN_ROOT}` → breaks on paths with spaces.
+- `${PLUGIN_ROOT}` in a command → expands to an **empty string** on CLI
+  1.1.1 ("Cannot find module '/scripts/…'", observed 2026-07-12; it worked
+  on earlier builds). Use hooks.json-relative paths: `node ./scripts/x.mjs`
+  (cwd = the hooks.json dir). Lint warns on it.
 - Missing timeout → 30s of silent blocking on a hung script.
 - Emitting logs to stdout → corrupts the JSON response; use stderr.
 

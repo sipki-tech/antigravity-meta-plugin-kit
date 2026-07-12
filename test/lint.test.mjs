@@ -19,6 +19,7 @@ import {
   isFailOpen,
   lintPlugin,
   scriptPathOf,
+  usesPluginRoot,
 } from "../lib/lint.mjs";
 
 // Each test seeds one defect into a fresh scaffold and asserts that exactly
@@ -166,10 +167,22 @@ test("enabled:false is not treated as an event", () => {
   assert.deepEqual(warningNames(result), []);
 });
 
-test("unknown event warns; SessionStart gets the unverified-contract note", () => {
+test("SessionStart is a known flat event (confirmed live 2026-07-12)", () => {
   const payload = freshPayload();
   editJson(join(payload, "hooks.json"), (doc) => {
     doc["demo-plugin"].SessionStart = [
+      { type: "command", command: "node ./scripts/example-guard.mjs", timeout: 10 },
+    ];
+  });
+  const result = lintPlugin(payload);
+  assert.ok(result.pass, JSON.stringify(failing(result)));
+  assert.deepEqual(warningNames(result), []);
+});
+
+test("unknown event warns with the known-events list", () => {
+  const payload = freshPayload();
+  editJson(join(payload, "hooks.json"), (doc) => {
+    doc["demo-plugin"].SessionEnd = [
       { type: "command", command: "node x.mjs", timeout: 10 },
     ];
   });
@@ -177,7 +190,22 @@ test("unknown event warns; SessionStart gets the unverified-contract note", () =
   assert.ok(result.pass, JSON.stringify(failing(result)));
   const w = result.warnings.find((x) => x.name === "unknown hook event");
   assert.ok(w, JSON.stringify(result.warnings));
-  assert.match(w.note, /unverified/);
+  assert.match(w.note, /SessionEnd — known events: SessionStart/);
+});
+
+test("${PLUGIN_ROOT} in a hook command warns (broken on CLI 1.1.1)", () => {
+  const payload = freshPayload();
+  editJson(join(payload, "hooks.json"), (doc) => {
+    doc["demo-plugin"].PreToolUse[0].hooks[0].command =
+      'node "${PLUGIN_ROOT}/scripts/example-guard.mjs"';
+  });
+  const result = lintPlugin(payload);
+  assert.ok(result.pass, JSON.stringify(failing(result)));
+  const w = result.warnings.find(
+    (x) => x.name === "hook command uses ${PLUGIN_ROOT}",
+  );
+  assert.ok(w, JSON.stringify(result.warnings));
+  assert.match(w.note, /empty string on CLI 1\.1\.1/);
 });
 
 test("hook script without a fail-open marker fails", () => {
@@ -349,7 +377,7 @@ test("flattenHooks flags shape mismatches as warnings", () => {
 });
 
 test("helper heuristics", () => {
-  assert.equal(KNOWN_EVENTS.length, 5);
+  assert.equal(KNOWN_EVENTS.length, 6);
   assert.ok(hasTrigger('Use when the user says "kit-plan".'));
   assert.ok(hasTrigger("Use for multi-step planning."));
   assert.ok(hasTrigger("Use always; especially in long sessions."));
@@ -359,7 +387,10 @@ test("helper heuristics", () => {
     scriptPathOf('node "${PLUGIN_ROOT}/scripts/x.mjs"'),
     "scripts/x.mjs",
   );
+  assert.equal(scriptPathOf("node ./scripts/x.mjs arg"), "scripts/x.mjs");
   assert.equal(scriptPathOf("echo hello"), null);
+  assert.ok(usesPluginRoot('node "${PLUGIN_ROOT}/scripts/x.mjs"'));
+  assert.ok(!usesPluginRoot("node ./scripts/x.mjs"));
 
   assert.ok(isFailOpen("import { runHook } from './lib/io.mjs';\nrunHook(fn);"));
   assert.ok(isFailOpen("try {\n  main();\n} catch {\n  allow();\n}"));

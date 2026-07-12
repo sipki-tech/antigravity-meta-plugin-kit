@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.4.1] — 2026-07-12
+
+Two live-probed contract flips on CLI 1.1.1, caught within a day of 0.4.0.
+
+### Added
+
+- **`SessionStart` is the sixth KNOWN_EVENT**: confirmed live (probe
+  2026-07-12) — fires once per conversation start, flat handler list,
+  input = the common stdin fields only, `{}` is the verified response.
+  Recorded in internals.md (wire contract + "flipped, then confirmed"
+  narrative), hooks guides EN+RU, meta-hooks skill; linter accepts it and
+  the "unverified" warning is gone.
+- Lint warning **`hook command uses ${PLUGIN_ROOT}`**: the variable expands
+  to an **empty string** on CLI 1.1.1 and every hook using it dies with
+  `Cannot find module '/scripts/...'` (observed live in both kits'
+  installed hooks). `scriptPathOf` now also resolves the official
+  hooks.json-relative form (`node ./scripts/x.mjs`; cwd = the hooks.json
+  dir).
+- internals.md: hook loading is **lazy** (per-conversation, not CLI
+  startup — the startup `loaded 0 named hooks` line is misleading); probe
+  hygiene notes (hook processes could not write into `/private/tmp` from a
+  sandboxed session).
+
+### Changed
+
+- Own payload + scaffold template hooks.json migrated from
+  `${PLUGIN_ROOT}` to `./scripts/...` commands.
+
 ## [0.4.0] — 2026-07-11
 
 Recalibrated against Antigravity CLI **1.1.1** (research pipeline re-run:

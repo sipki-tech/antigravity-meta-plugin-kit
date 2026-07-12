@@ -119,26 +119,27 @@ rest is the rich profile. *Covered by:* template; lint.
 `[OFFICIAL 2026-07]` unless marked otherwise. All JSON keys use **camelCase**
 (protojson). Hook commands receive JSON on stdin, answer JSON on stdout.
 
-### Events — five documented, a sixth surfacing
+### Events — six (five documented + SessionStart)
 
 | Event | Fires | Structure |
 |---|---|---|
+| `SessionStart` | at conversation start | flat handler list |
 | `PreToolUse` | before a tool step | matcher group `{matcher, hooks:[...]}` |
 | `PostToolUse` | after a tool step | matcher group |
 | `PreInvocation` | before the model is called | flat handler list |
 | `PostInvocation` | after tool calls finish | flat handler list |
 | `Stop` | when the execution loop terminates | flat handler list |
 
-`SessionStart` **flipped** `[OBSERVED 2026-07-11, strings of CLI 1.1.1]`:
-refuted against the 1.0.16 binary (only TLS noise matched), it now has a
-full proto family — `SessionStartHookArgs`/`SessionStartHookResult`,
-`GetSessionStartHookArgs`, protojson field `sessionStartHookArgs`,
-`sessionStartHookNames`. It is still absent from the builtin docs (they
-document exactly five events) and its wire contract is unverified by a live
-probe — treat as `[MEDIUM]` until one lands. The linter keeps warning on it
-with this status. A `SupportsHook` RPC (`GetSupportsHookResult`) also
-appeared — looks like an internal capability check, not a sixth user-facing
-event `[MEDIUM]`.
+`SessionStart` **flipped, then confirmed live**: refuted against the 1.0.16
+binary (only TLS noise matched), it grew a full proto family in the 1.1.1
+strings (`SessionStartHookArgs`/`Result`, `GetSessionStartHookArgs`,
+protojson `sessionStartHookArgs`, `sessionStartHookNames`)
+`[OBSERVED 2026-07-11]` — and a live probe on CLI 1.1.1 recorded it firing
+once per **conversation start** (before invocation 0's PreInvocation; twice
+in one CLI process across two conversations) `[OBSERVED 2026-07-12]`. It is
+still absent from the builtin docs, which document exactly five events. A
+`SupportsHook` RPC (`GetSupportsHookResult`) also appeared — looks like an
+internal capability check, not a seventh user-facing event `[MEDIUM]`.
 
 ### Handler fields
 
@@ -170,6 +171,16 @@ an official field. Reserved: `overwrite` in PreToolUse (not implemented).
 The transcript/artifact directory segment differs per surface:
 `antigravity-cli/` (CLI), `antigravity/` (Antigravity 2.0),
 `antigravity-ide/` (IDE).
+
+### SessionStart
+
+`[OBSERVED 2026-07-12, live probe on CLI 1.1.1 — not in official docs]`
+Fires once per conversation start. Input: the **common fields only**
+(`conversationId`, `workspacePaths`, `transcriptPath`,
+`artifactDirectoryPath`, `modelName`) — no event-specific additions.
+Output: `{}` (silent no-op) is accepted; other response keys are unprobed —
+a `SessionStartHookResult` proto exists, so injection may be possible, but
+don't rely on it without a probe.
 
 ### PreToolUse
 
@@ -228,10 +239,19 @@ stop (reason is injected as a system message); any other decision allows it.
 
 `[OBSERVED 2026-07]` A throwing/non-zero hook degrades or breaks the host
 session. Wrap everything (`runHook()` in the template `io.mjs`): on any
-parse/internal error emit the allow/silent response and exit 0. Quote
-`${PLUGIN_ROOT}` in commands — paths contain spaces. `${PLUGIN_ROOT}` is the
-plugin dir `[OBSERVED 2026-07]`; official docs use hooks.json-relative
-`./scripts/...` paths (cwd = hooks.json dir) — both work in plugins.
+parse/internal error emit the allow/silent response and exit 0.
+
+**`${PLUGIN_ROOT}` flipped** `[OBSERVED 2026-07-12, CLI 1.1.1]`: it expands
+to an **empty string** — every hook command using it dies with
+`Cannot find module '/scripts/...'` (exit 1 on all handlers, both kits).
+Earlier builds expanded it to the plugin dir `[OBSERVED 2026-07]`. Use the
+official hooks.json-relative form: `node ./scripts/x.mjs` (cwd = the
+hooks.json dir). Lint warns on `${PLUGIN_ROOT}` in commands.
+
+Hook loading is **lazy** `[OBSERVED 2026-07-12, CLI 1.1.1]`: the startup
+log says `loaded 0 named hooks from 0 hooks.json file(s)`, and the real
+per-file loads (`Loaded hooks.json from <path>: N named hooks`) appear only
+when a conversation starts — don't trust the startup line when debugging.
 
 ### Limitations
 
@@ -474,12 +494,12 @@ checkout; `#main` forces the latest commit.
 
 ## Refuted rumors
 
-- ~~`SessionStart` hook event does not exist~~ — **flipped in 1.1.1**: the
-  refutation was correct for 1.0.16 (binary check, 2026-07), but the 1.1.1
-  binary carries the full proto family (see Events above). This is the
-  provenance discipline working as designed: rank-6 community sources were
-  eventually right, yet only rank 1–3 evidence could say *when* — dated
-  observations, not beliefs.
+- ~~`SessionStart` hook event does not exist~~ — **flipped in 1.1.1 and
+  confirmed live** (probe 2026-07-12; wire contract in Events above): the
+  refutation was correct for 1.0.16 (binary check, 2026-07), then the
+  event became real. This is the provenance discipline working as designed:
+  rank-6 community sources were eventually right, yet only rank 1–3
+  evidence could say *when* — dated observations, not beliefs.
 - "hooks.json must be namespaced by the plugin name" — top-level keys are
   arbitrary hook names; the plugin-name key is just a sane convention.
 - "PostToolUse must return `{"allow_tool": true, ...inject}`" — official

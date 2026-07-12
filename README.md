@@ -149,7 +149,7 @@ Exit 1 on any FAIL; warnings and notes never affect the exit code.
 | every skill has SKILL.md; frontmatter valid | skills that never load |
 | skill descriptions carry a trigger | skills that never route |
 | hooks.json parses / declares named hooks | event name at top level (Claude Code-style config never loads) |
-| hook entries well-formed (5 events, both shapes, type=command) | malformed handlers |
+| hook entries well-formed (6 events, both shapes, type=command) | malformed handlers |
 | hook timeouts sane | non-numeric/negative timeouts |
 | hook scripts exist / fail-open | session-breaking hooks |
 | agents/* minimally valid (toml + md) | broken subagent definitions |
@@ -160,9 +160,9 @@ Exit 1 on any FAIL; warnings and notes never affect the exit code.
 Warnings (never affect the exit code): hooks.json not at the plugin root
 (`agy plugin validate` won't see it), duplicated hooks.json with drift,
 missing/oversized timeouts (official default is 30s of blocking), unknown
-hook events (`SessionStart` gets an "unverified contract" note — it surfaced
-in the 1.1.1 binary but is still undocumented), skill-name style, a
-committed `installed_version.json`.
+hook events, `${PLUGIN_ROOT}` in hook commands (expands to an empty string
+on CLI 1.1.1 — use `node ./scripts/x.mjs`), skill-name style, a committed
+`installed_version.json`.
 
 The fail-open check is a heuristic (a `runHook(` wrapper or a try/catch
 around the body) — it catches the common miss, not every unsafe script.
@@ -179,7 +179,7 @@ English and Russian:
 | [Getting started](docs/guides/getting-started.md) · [RU](docs/guides/getting-started.ru.md) | scaffold → lint → test → install → verify, end to end |
 | [Using the plugin](docs/guides/using-the-plugin.md) · [RU](docs/guides/using-the-plugin.ru.md) | day-to-day: skill triggers, /meta-* commands, delegating to subagents, troubleshooting |
 | [Plugin manifest & layouts](docs/guides/plugin-manifest.md) · [RU](docs/guides/plugin-manifest.ru.md) | plugin.json fields, the two plugin worlds, installed_version.json, install paths |
-| [Hooks](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | the five documented events (+ SessionStart status), official wire contracts, fail-open law, matchers, timeouts |
+| [Hooks](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | all six events incl. the undocumented SessionStart (probed live), official wire contracts, fail-open law, matchers, timeouts |
 | [Skills](docs/guides/skills.md) · [RU](docs/guides/skills.ru.md) | SKILL.md anatomy, trigger phrases, progressive disclosure, XML prompt templates |
 | [Subagents](docs/guides/agents.md) · [RU](docs/guides/agents.ru.md) | agents/*.toml format, models, prompts, validation |
 | [Rules & workflows](docs/guides/rules-workflows.md) · [RU](docs/guides/rules-workflows.ru.md) | GEMINI.md/AGENTS.md hierarchy, rule triggers, workflow slash-commands |
@@ -204,8 +204,8 @@ or `~/.codex/skills/` (Codex).
 loader trap, hook wire format, and component convention — each claim tagged
 `[OFFICIAL 2026-07]`, `[OBSERVED 2026-07]`, or `[MEDIUM]`, with a
 "Refuted rumors" section that dates its own reversals (`SessionStart`:
-refuted on 1.0.16, surfaced in the 1.1.1 binary, contract still
-unverified). The linter
+refuted on 1.0.16, confirmed live on 1.1.1 with its wire contract
+recorded). The linter
 implements it; the skills and guides reference it.
 
 ## Relationship to `agy plugin validate`

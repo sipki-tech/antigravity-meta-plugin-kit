@@ -19,15 +19,17 @@ exit 0.
    convention, not a requirement. Never put an event name at the top level
    (that's a Claude Code settings.json shape — it does not load). A named
    hook supports `"enabled": false` for temporary disabling.
-2. Exactly five documented events. `PreToolUse`/`PostToolUse` take matcher
-   groups `{"matcher": "run_command", "hooks": [...]}` (matcher: `""`/`"*"` =
-   all tools, otherwise regex); `PreInvocation`/`PostInvocation`/`Stop` take
-   flat handler lists. `SessionStart` surfaced in the 1.1.1 binary but is
-   undocumented with an unverified wire contract — do not ship hooks on it
-   yet. Handler fields: `type`
+2. Six events. `PreToolUse`/`PostToolUse` take matcher groups
+   `{"matcher": "run_command", "hooks": [...]}` (matcher: `""`/`"*"` = all
+   tools, otherwise regex); `SessionStart`/`PreInvocation`/`PostInvocation`/
+   `Stop` take flat handler lists. `SessionStart` is undocumented but
+   confirmed live on CLI 1.1.1 (probe 2026-07-12): fires once per
+   conversation start, input = the common fields only, respond `{}` (the
+   only verified response). Handler fields: `type`
    (optional, only `"command"`), `command` (required; runs via `sh -c`, cwd =
-   the hooks.json directory, `~` expands — quote `${PLUGIN_ROOT}` in plugin
-   scripts), `timeout` (seconds; **default 30** — set 10–15 explicitly, hooks
+   the hooks.json directory — reference scripts as `node ./scripts/x.mjs`;
+   `${PLUGIN_ROOT}` expands to an EMPTY string on CLI 1.1.1 and kills the
+   hook), `timeout` (seconds; **default 30** — set 10–15 explicitly, hooks
    block the agent loop synchronously).
 3. Wire contracts (stdin/stdout JSON, camelCase keys; common input:
    `conversationId`, `workspacePaths[]`, `transcriptPath`,

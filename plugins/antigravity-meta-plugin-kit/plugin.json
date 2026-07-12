@@ -1,6 +1,6 @@
 {
   "name": "antigravity-meta-plugin-kit",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Author Antigravity plugins with guardrails: six meta skills and four specialist subagents that know the loader's traps.",
   "author": {
     "name": "sipki-tech"
