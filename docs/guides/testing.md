@@ -40,27 +40,32 @@ Feed three inputs at minimum: the real event shape, junk
 (`{"totally": "unexpected"}`), and empty stdin. A fail-open hook answers
 allow/silent with exit 0 to all of them.
 
-## Installer tests — temp roots, never your real home
+## Script/tool tests — temp roots, never your real home
+
+A native-only payload has no installer to test; the install itself is the
+Antigravity CLI's job (`agy plugin install`). What you *do* test is any
+bundled `scripts/` tool, always against a throwaway root:
 
 ```js
 const home = mkdtempSync(join(tmpdir(), "my-plugin-test-"));
-install({ home });                    // or { workspace: dir }
+runTool({ home });                    // or { workspace: dir }
 ```
 
-Assert the journal contract explicitly:
+For any tool that supports `--dry-run` (e.g. a scaffolder), assert the
+journal contract explicitly:
 
 ```js
-const { actions } = install({ home, dryRun: true });
+const { actions } = runTool({ home, dryRun: true });
 assert.ok(actions.length > 0);                      // the plan exists
 assert.equal(existsSync(join(home, ".gemini")), false);  // nothing written
 ```
 
-And the MCP contract: pre-seed a user server, run install then uninstall,
-assert the user's entry survived byte-identical.
+If your tool merges MCP config, assert the contract: pre-seed a user server,
+run merge then prune, and confirm the user's entry survived byte-identical.
 
-## CLI e2e
+## Tool e2e
 
-`spawnSync(process.execPath, [CLI, ...args], { cwd })`; assert exit code,
+`spawnSync(process.execPath, [tool, ...args], { cwd })`; assert exit code,
 stdout patterns, and that user errors print a friendly message without a
 stack trace.
 

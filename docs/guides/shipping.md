@@ -2,53 +2,66 @@
 
 *English | [Русский](shipping.ru.md)*
 
-## GitHub-only npx distribution
+## Native `agy plugin install` distribution
 
-No npm publish needed. Users run:
+No npm publish, no installer to ship. Users install straight from GitHub with
+the Antigravity CLI:
 
 ```bash
-npx github:you/my-plugin install            # cached checkout
-npx github:you/my-plugin#main install       # force the latest commit
+agy plugin install https://github.com/you/my-plugin   # clone, register, install
 ```
 
-Two packing traps (both handled by this kit's scaffold):
+The CLI clones the repo, scans it for a top-level `plugins/` directory
+("bulk plugins directory"), copies each plugin into
+`~/.gemini/config/plugins/<name>/`, and registers the install in
+`~/.gemini/config/import_manifest.json`. Tell users to restart Antigravity
+afterwards. A local checkout installs the same way:
 
-- `npx github:` installs via `npm pack`, which **silently drops files named
-  `.gitignore`** and treats nested `package.json` specially. If your repo
-  templates such files, store them renamed (`_gitignore`) and rename at
-  generation time.
-- npx **caches** the checkout — document `#main` in your README or users
-  will debug a version you already fixed.
+```bash
+agy plugin install path/to/my-plugin                  # local payload dir
+```
 
-Since CLI 1.0.9, `agy plugin install` also resolves git submodules.
+Since CLI 1.0.9, `agy plugin install` also resolves git submodules. Shorthands
+like `github:you/repo` or `you/repo` are **rejected** — pass the full
+`https://github.com/...` URL or a directory path.
 
 ## The update pattern
 
-`update` = re-run install, then report. Compare the version in the installed
-`installed_version.json` with the payload's `plugin.json`:
+There is **no** `agy plugin update` subcommand. **Update = re-run install** —
+it re-clones the latest `main` and re-registers:
 
-- not installed before → "fresh install (x.y.z)"
-- equal → "already up to date (x.y.z) — payload re-synced"
-- different → "updated: a.b.c -> x.y.z" + a CHANGELOG link
+```bash
+agy plugin install https://github.com/you/my-plugin
+```
 
-## verify / uninstall contracts
+Because the CLI writes no version-file, there is no version-diff to print;
+link the CHANGELOG so users can see what changed. Note that an Antigravity
+re-provisioning can wipe third-party dirs from `~/.gemini/config/plugins/`, so
+recommend a post-update `agy plugin list` habit and a re-install if a plugin
+went missing (see [internals](../internals.md)).
 
-- **verify** — named checks `{name, pass, note}`, printed as
-  `ok /FAIL name (note)`, exit 1 on any fail. Check at minimum: plugin dir,
-  manifest parses, author is an object, `installed_version.json` present
-  and matching, root hooks.json declares a named hook, hook scripts exist.
-- **uninstall** — remove the plugin dirs (and mirrors); prune **only** MCP
-  entries identical to what was installed; user edits stay.
+## enable / disable / uninstall
+
+- **`agy plugin list`** — shows CLI-installed plugins; the fastest confirmation
+  an install registered.
+- **`agy plugin enable|disable <name>`** — toggle a plugin without removing it.
+- **`agy plugin uninstall <name>`** — removes the plugin dir and its
+  `import_manifest.json` entry.
+
+There is no separate verify command: `agy plugin validate <payload>` checks
+structure, and `agy plugin list` (plus a live session that sees the skills)
+confirms the install.
 
 ## Release gates (in order)
 
 1. `lint` — zero FAIL, zero warnings on your payload.
 2. `agy plugin validate plugins/<name>` — `[ok]`, hooks processed.
 3. `npm test` — green locally.
-4. CI green: matrix ubuntu+macos × Node 20/22, `npm test` + a smoke job
-   (install into a temp workspace → verify).
-5. Fresh-machine check: `npx github:you/my-plugin#main install --dry-run`
-   from a clean temp dir (this also proves the packlist workarounds).
+4. CI green: matrix ubuntu+macos × Node 20/22, `npm test` + a structural
+   step (`agy plugin validate` when `agy` is on PATH).
+5. Fresh-machine check: `agy plugin install https://github.com/you/my-plugin`
+   from a clean environment → `agy plugin list` shows it → a session sees its
+   skills → `agy plugin uninstall <name>` removes it cleanly.
 6. Tag **after** CI is green, never before. Release notes = the CHANGELOG
    section.
 
@@ -70,17 +83,17 @@ Since CLI 1.0.9, `agy plugin install` also resolves git submodules.
 
 ## Pitfalls
 
-- Tagging before CI → a broken tag is forever cached by npx.
-- Shipping a payload with `installed_version.json` committed → the installer
-  and the file fight; lint warns.
-- Fixing a bug and telling users to re-run npx without `#main` → they get
-  the cached broken version.
+- Tagging before CI → a broken tag ships as the next `agy plugin install`.
+- Shipping a payload with `installed_version.json` committed → it is an
+  install-time artifact, never a payload file; lint warns.
+- Telling users to "update" without re-running `agy plugin install` → nothing
+  changes; there is no background auto-update.
 
 ## Checklist
 
-- [ ] README documents `#main` and the update command
-- [ ] verify/uninstall honor the contracts above
-- [ ] CI matrix + smoke green; tag only after
+- [ ] README documents `agy plugin install` and the re-install update path
+- [ ] `agy plugin list` / `uninstall` confirmed on a fresh machine
+- [ ] CI matrix + `agy plugin validate` green; tag only after
 - [ ] CHANGELOG entry + Backlog for deferred ideas
 - [ ] EN/RU docs in the same commit
 

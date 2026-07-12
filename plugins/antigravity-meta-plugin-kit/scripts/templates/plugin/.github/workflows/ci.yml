@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Unit tests
+        run: npm test
+      - name: Structural validation (agy plugin validate, when available)
+        run: |
+          if command -v agy >/dev/null 2>&1; then
+            agy plugin validate plugins/{{name}}
+          else
+            echo "agy not on PATH — skipping 'agy plugin validate'. Install the Antigravity CLI to enable it."
+          fi

@@ -23,20 +23,22 @@ export function validatePluginName(name) {
   return null;
 }
 
-// A corrupt checkout (interrupted npx download) would otherwise surface as a
-// raw readdirSync stack trace mid-scaffold.
+// A corrupt/partial plugin install would otherwise surface as a raw
+// readdirSync stack trace mid-scaffold.
 export function requireTemplates(templatesDir = TEMPLATES_DIR) {
   if (!existsSync(templatesDir)) {
     throw new Error(
-      `templates are missing (${templatesDir}). The checkout is corrupt — ` +
-        "re-run via `npx github:sipki-tech/antigravity-meta-plugin-kit create <name>`.",
+      `templates are missing (${templatesDir}). The plugin install is ` +
+        "incomplete — reinstall via `agy plugin install " +
+        "https://github.com/sipki-tech/antigravity-meta-plugin-kit`.",
     );
   }
 }
 
-// npm drops files named .gitignore when npx packs the git checkout, and treats
-// nested package.json manifests specially — so templates store them under safe
-// names and we rename at render time.
+// Templates store dotfiles and nested manifests under safe names
+// (`_gitignore`, `_package.json`) so they don't act as real ignore rules or
+// stray package manifests while they live inside this plugin's payload; the
+// scaffolder renames them to their real names at render time.
 const RENAMES = {
   _gitignore: ".gitignore",
   "_package.json": "package.json",

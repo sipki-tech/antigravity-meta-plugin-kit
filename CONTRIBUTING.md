@@ -8,6 +8,13 @@ cd antigravity-meta-plugin-kit
 npm test    # node --test; no install step, no build step
 ```
 
+The dev tools live inside the plugin payload. Run them from a checkout with:
+
+```bash
+node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs .
+node plugins/antigravity-meta-plugin-kit/scripts/create.mjs my-plugin --dry-run
+```
+
 For the full dogfood suite, check out the reference repo as a sibling
 (`../antigravity-kit`) or set `AGY_KIT_PAYLOAD` to its payload dir.
 
@@ -22,7 +29,8 @@ For the full dogfood suite, check out the reference repo as a sibling
   reference payload (antigravity-kit); the dogfood CI job is a hard gate. If
   a new rule fails there, the rule is wrong until proven otherwise — never
   weaken a check silently to make dogfood pass; surface the finding instead.
-- **Every FS mutation goes through the journal** (`lib/fsutil.mjs`), so
+- **Every FS mutation goes through the journal**
+  (`plugins/antigravity-meta-plugin-kit/scripts/lib/fsutil.mjs`), so
   `--dry-run` stays exact and free.
 - **Docs are bilingual.** Any README change lands in both `README.md` and
   `README.ru.md` in the same commit, section for section. Code, comments and
@@ -36,11 +44,10 @@ For the full dogfood suite, check out the reference repo as a sibling
 
 | Piece | Path |
 |---|---|
-| CLI | `bin/cli.mjs` |
-| Scaffolder / linter / helpers | `lib/` |
-| The kit's own installer | `installer/` |
+| `create` / `lint` entrypoints | `plugins/antigravity-meta-plugin-kit/scripts/{create,lint}.mjs` |
+| Scaffolder / linter / helpers | `plugins/antigravity-meta-plugin-kit/scripts/lib/` |
 | The kit's plugin payload (skills, subagents, workflows) | `plugins/antigravity-meta-plugin-kit/` |
-| Scaffold templates | `templates/plugin/` (note `_gitignore`, `_package.json` — npm-packlist workaround; deliberately NOT shared with `installer/` — scaffolds must be standalone) |
+| Scaffold templates | `plugins/antigravity-meta-plugin-kit/scripts/templates/plugin/` (note `_gitignore`, `_package.json` renamed at generation) |
 | Trap registry / guides | `docs/internals.md`, `docs/guides/` (bilingual) |
 | Tests | `test/` |
 

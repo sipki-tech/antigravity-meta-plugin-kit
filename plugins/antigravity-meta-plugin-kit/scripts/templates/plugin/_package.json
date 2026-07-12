@@ -4,9 +4,6 @@
   "description": "Antigravity plugin — scaffolded by antigravity-meta-plugin-kit.",
   "private": true,
   "type": "module",
-  "bin": {
-    "{{name}}": "bin/cli.mjs"
-  },
   "scripts": {
     "test": "node --test test/*.test.mjs"
   },

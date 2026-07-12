@@ -4,6 +4,61 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-07-12
+
+Fully native distribution — the kit is Antigravity-only, so it now leans on
+Antigravity's own plugin system instead of a parallel npx installer. Verified
+by live probes on CLI 1.1.1 (2026-07-12): `agy plugin install` clones a
+GitHub URL directly, registers the plugin, and its skills load in a live
+session with no `installed_version.json`.
+
+### Changed
+
+- **Install is native — zero npx.** Users run `agy plugin install
+  https://github.com/sipki-tech/antigravity-meta-plugin-kit` (clones,
+  registers in `~/.gemini/config/import_manifest.json`, managed via
+  `agy plugin list|enable|disable|uninstall`). Update = re-run install.
+- **`create` and `lint` moved into the plugin** at
+  `plugins/antigravity-meta-plugin-kit/scripts/{create,lint}.mjs` (from
+  `bin/cli.mjs` + `lib/`), so they ship with the payload and survive
+  `agy plugin install`; invoke them via the meta-scaffold skill or
+  `node .../scripts/…`.
+- **Generated plugins are native-only bare payloads** — `create` no longer
+  scaffolds `bin/`/`installer/`; the template installs via `agy plugin
+  install` and its CI runs `npm test` + `agy plugin validate`.
+
+### Removed
+
+- `bin/cli.mjs`, `installer/` (install.mjs, paths.mjs), and the
+  `install/update/uninstall/verify/workflows` subcommands — `agy plugin`
+  does all of it. The npx distribution model and the `#main` cache-bypass
+  guidance are gone; root `package.json` is now a dev-only manifest (no
+  `bin`, no `files`).
+
+### Added
+
+- internals.md `[OBSERVED 2026-07-12]`: the **two install worlds** — the IDE
+  plugin-manager writes `installed_version.json`; `agy plugin install`
+  instead registers the plugin in `import_manifest.json` and writes no
+  version-file. `agy plugin install <target>` accepts an https git URL
+  (clones + "bulk plugins directory" scan), a local dir, or
+  `plugin@marketplace`.
+- **Per-project use is workspace discovery, not an install command**
+  `[OBSERVED 2026-07-12]`: `agy plugin install` is global-only; to scope a
+  plugin to one project you vendor it under `.agents/` and commit it.
+  Discovery picks up both a wrapped `.agents/plugins/<name>/` and a flat
+  `.agents/skills/<name>/` (+ `rules/`, `hooks.json`, `mcp_config.json`).
+  Non-interactive `-p` needs `--add-dir <project>`; interactive uses the
+  launch dir. Documented in README (EN+RU), internals.md, plugin-manifest
+  guide.
+
+### Fixed
+
+- Lint dropped the obsolete "installer never writes installed_version.json"
+  warning (native install handles registration); the committed-in-payload
+  warning stays. Payload-only lint no longer emits the stale
+  silent-ignore note.
+
 ## [0.4.1] — 2026-07-12
 
 Two live-probed contract flips on CLI 1.1.1, caught within a day of 0.4.0.

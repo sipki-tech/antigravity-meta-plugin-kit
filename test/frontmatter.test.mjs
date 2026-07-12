@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseFrontmatter } from "../lib/frontmatter.mjs";
+import { parseFrontmatter } from "../plugins/antigravity-meta-plugin-kit/scripts/lib/frontmatter.mjs";
 
 test("parses flat frontmatter and returns the body", () => {
   const { data, body } = parseFrontmatter(

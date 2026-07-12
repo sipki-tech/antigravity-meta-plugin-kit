@@ -242,25 +242,16 @@ export function lintPlugin(pluginDir, { repoRoot = null } = {}) {
     ok("rules non-empty", mds.length > 0, `${mds.length} rule files`);
   }
 
-  // The installed_version.json trap: the Antigravity plugin manager writes it
-  // on install and the loader silently ignores a plugin dir without it.
+  // installed_version.json is an INSTALL-TIME artifact, never a payload file.
+  // Two install worlds handle it differently (docs/internals.md): the IDE
+  // plugin-manager writes it into the installed copy, while `agy plugin
+  // install` instead registers the plugin in ~/.gemini/config/
+  // import_manifest.json and writes no version-file (skills still load —
+  // probed 2026-07-12). Either way, an author must never ship it.
   if (existsSync(join(dir, "installed_version.json"))) {
     warn(
       "installed_version.json committed in payload",
-      "the installer writes it at install time; remove it from the payload",
-    );
-  }
-  if (repoRoot) {
-    if (!installerWritesInstalledVersion(repoRoot)) {
-      warn(
-        "installer never writes installed_version.json",
-        "the loader silently ignores a plugin dir without it (observed 2026-07)",
-      );
-    }
-  } else {
-    info(
-      "installed_version.json",
-      'the loader silently ignores a plugin dir without installed_version.json — an installer must write {"version": ...} into the installed copy (observed 2026-07, preview)',
+      "it is written at install time (IDE plugin-manager) — remove it from the payload",
     );
   }
 
@@ -509,18 +500,4 @@ function lintWorkflows(dir, { ok }) {
     bad.length === 0,
     bad.join(", ") || "description is what turns a workflow into a /slash-command",
   );
-}
-
-function installerWritesInstalledVersion(repoRoot) {
-  for (const sub of ["installer", "bin"]) {
-    const d = join(repoRoot, sub);
-    if (!existsSync(d)) continue;
-    for (const f of readdirSync(d)) {
-      if (!f.endsWith(".mjs")) continue;
-      if (readFileSync(join(d, f), "utf8").includes("installed_version.json")) {
-        return true;
-      }
-    }
-  }
-  return false;
 }

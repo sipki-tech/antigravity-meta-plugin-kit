@@ -3,18 +3,18 @@
 *[English](using-the-plugin.md) | Русский*
 
 Что вы реально получаете после
-`npx github:sipki-tech/antigravity-meta-plugin-kit install` — и как этим
-управлять из живой сессии Antigravity.
+`agy plugin install https://github.com/sipki-tech/antigravity-meta-plugin-kit`
+— и как этим управлять из живой сессии Antigravity.
 
 ## После установки
 
 1. **Перезапустите Antigravity** — загрузчик подхватывает плагины на старте.
-2. Глобальная установка обслуживает все воркспейсы; slash-командам в каждом
-   проекте нужен один дополнительный шаг:
-   `npx github:sipki-tech/antigravity-meta-plugin-kit workflows`
-   (кладёт алиасы `/meta-*` в `<project>/.agents/workflows/`).
-3. Health-чек в любой момент:
-   `npx github:sipki-tech/antigravity-meta-plugin-kit verify`.
+2. Одна установка обслуживает все воркспейсы; slash-команды `/meta-*` едут
+   внутри payload плагина, поэтому появляются везде, где плагин установлен, —
+   без шага на каждый проект.
+3. Подтвердить в любой момент: `agy plugin list` показывает, что он
+   зарегистрирован; `agy plugin validate plugins/antigravity-meta-plugin-kit`
+   проверяет его структуру.
 
 ## Шесть скиллов — срабатывают по формулировке
 
@@ -28,7 +28,7 @@
 | «meta-skills — поревьюй мой SKILL.md» | `meta-skills` | дисциплина frontmatter/триггеров/структуры |
 | «meta-agents — добавь сабагента» | `meta-agents` | оба формата, description как поверхность делегирования, workflow-обёртки |
 | «meta-test — покрой мой хук тестами» | `meta-test` | zero-dep доктрина node --test |
-| «meta-ship — готовим релиз» | `meta-ship` | npx-дистрибуция, гейты, чеклист версий |
+| «meta-ship — готовим релиз» | `meta-ship` | нативная дистрибуция agy plugin install, гейты, чеклист версий |
 
 ## Четыре сабагента — делегируйте тяжёлое
 
@@ -63,18 +63,21 @@
 ## Troubleshooting
 
 - **Скиллы не срабатывают после установки** — перезапустили Antigravity?
-  Затем `verify`; классический тихий убийца — отсутствующий
-  `installed_version.json` (verify его проверяет).
-- **`/meta-*` неизвестна в проекте** — выполните команду `workflows` в этом
-  проекте; одна глобальная установка алиасы в проекты не кладёт.
+  Затем `agy plugin list` для подтверждения регистрации. Если вы вручную
+  скопировали папку в `~/.gemini/config/plugins/` вместо `agy plugin install`,
+  IDE-менеджер плагинов не получил `installed_version.json` и игнорирует её —
+  переустановите через CLI.
+- **`/meta-*` неизвестна в проекте** — команды едут в payload; убедитесь, что
+  сам плагин загрузился (`agy plugin list`), и перезапустите Antigravity.
 - **Сабагент не спавнится** — хост инжектит сабагентов установленных
   плагинов в промпт главного агента (подтверждено, см.
   [internals](../internals.md)), так что промах обычно значит: плагин не
-  загрузился (запустите `verify`) или формулировка не совпала с description
+  загрузился (`agy plugin list`) или формулировка не совпала с description
   агента; тело workflow всё равно ведёт главного агента сделать работу
   самому.
-- **Старая версия** — `npx github:sipki-tech/antigravity-meta-plugin-kit#main update`
-  (не забудьте `#main`: npx кэширует).
+- **Старая версия** — перезапустите `agy plugin install
+  https://github.com/sipki-tech/antigravity-meta-plugin-kit` (заново клонирует
+  последний `main`); подкоманды `agy plugin update` нет.
 
 *См. также: [Быстрый старт](getting-started.ru.md) ·
 [Сабагенты](agents.ru.md) · [реестр ловушек](../internals.md)*

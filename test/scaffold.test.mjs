@@ -4,8 +4,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scaffold, validatePluginName } from "../lib/scaffold.mjs";
-import { lintPlugin, lintTarget } from "../lib/lint.mjs";
+import { scaffold, validatePluginName } from "../plugins/antigravity-meta-plugin-kit/scripts/lib/scaffold.mjs";
+import { lintPlugin, lintTarget } from "../plugins/antigravity-meta-plugin-kit/scripts/lib/lint.mjs";
 
 const freshDir = () => mkdtempSync(join(tmpdir(), "meta-kit-scaffold-"));
 
@@ -29,10 +29,6 @@ test("scaffold creates the full expected structure", () => {
     ".gitignore",
     "README.md",
     ".github/workflows/ci.yml",
-    "bin/cli.mjs",
-    "installer/fsutil.mjs",
-    "installer/paths.mjs",
-    "installer/install.mjs",
     "plugins/demo-plugin/plugin.json",
     "plugins/demo-plugin/hooks.json",
     "plugins/demo-plugin/scripts/example-guard.mjs",
@@ -42,8 +38,12 @@ test("scaffold creates the full expected structure", () => {
     "plugins/demo-plugin/rules/style.md",
     "plugins/demo-plugin/mcp_config.json",
     "test/hook.test.mjs",
-    "test/installer.test.mjs",
   ];
+  // Native-only scaffold: no bin/ or installer/ — install via `agy plugin
+  // install`, not a bundled Node CLI.
+  for (const gone of ["bin/cli.mjs", "installer", "test/installer.test.mjs"]) {
+    assert.equal(existsSync(join(targetDir, gone)), false, `should not scaffold ${gone}`);
+  }
   for (const rel of expected) {
     assert.ok(existsSync(join(targetDir, rel)), `missing ${rel}`);
   }
@@ -119,7 +119,7 @@ test("scaffolded plugin lints clean (payload and repo-root modes)", () => {
   const repo = lintTarget(targetDir);
   assert.ok(repo.pass);
   assert.equal(repo.warnings.length, 0, JSON.stringify(repo.warnings));
-  assert.equal(repo.notes.length, 0, "repo mode detects the installer, no note");
+  assert.equal(repo.notes.length, 0, JSON.stringify(repo.notes));
 });
 
 test("scaffolded plugin's own tests pass out of the box", () => {
@@ -133,7 +133,7 @@ test("scaffolded plugin's own tests pass out of the box", () => {
   delete env.NODE_OPTIONS;
   const res = spawnSync(
     process.execPath,
-    ["--test", "test/hook.test.mjs", "test/installer.test.mjs"],
+    ["--test", "test/hook.test.mjs"],
     { cwd: targetDir, encoding: "utf8", timeout: 120000, env },
   );
   assert.equal(res.status, 0, `scaffolded tests failed:\n${res.stdout}\n${res.stderr}`);

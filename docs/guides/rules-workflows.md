@@ -51,8 +51,8 @@ description: Plan non-trivial work before coding — numbered plan with scope an
   kit's linter is the only gate).
 - Keep workflows as thin aliases pointing at skills: the skill holds the
   playbook, the workflow is the invocation surface. Don't duplicate logic.
-- Location: `<project>/.agents/workflows/` (installer mirrors into
-  `.agent/workflows/` only when `.agent/` already exists). Skills also
+- Location: `<project>/.agents/workflows/` (Antigravity also reads
+  `.agent/workflows/` when that dir exists). Skills also
   surface as slash commands automatically, so a workflow earns its place
   only when it adds wording or arguments on top of the skill.
 

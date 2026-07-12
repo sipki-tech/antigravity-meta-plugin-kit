@@ -18,8 +18,8 @@ MCP-серверы.
 ---
 
 - [Зачем это существует](#зачем-это-существует)
-- [Быстрый старт](#быстрый-старт)
 - [Установка как плагина](#установка-как-плагина)
+- [Быстрый старт](#быстрый-старт)
 - [Что генерирует `create`](#что-генерирует-create)
 - [Проверки линтера](#проверки-линтера)
 - [Гайды](#гайды)
@@ -42,31 +42,67 @@ CLI-бинарника; часть существует лишь как поле
 
 Этот кит превращает это знание в исполняемую форму:
 
-- **`create`** — генерирует репозиторий плагина, корректный по построению:
-  манифест, корневой `hooks.json` с fail-open-гардом, SKILL.md, который
-  срабатывает, инсталлер с dry-run, тесты, зелёные из коробки, CI.
+- **`create`** — генерирует native-only репозиторий плагина, корректный по
+  построению: манифест, корневой `hooks.json` с fail-open-гардом, SKILL.md,
+  который срабатывает, тесты, зелёные из коробки, CI. Без встроенного
+  инсталлера — результат ставится через `agy plugin install`.
 - **`lint`** — проверяет любой payload против каждой известной ловушки:
   именованные чеки и предупреждения.
 - **Скиллы + гайды** — учат AI-агента (или человека) всей системе, с
   провенансом каждого утверждения ([docs/internals.md](docs/internals.md)).
 
-## Быстрый старт
+`create` и `lint` едут как `scripts/` внутри плагина, поэтому работают после
+`agy plugin install`; из чекаута запускайте их напрямую через
+`node plugins/antigravity-meta-plugin-kit/scripts/{create,lint}.mjs`.
+
+## Установка как плагина
+
+Мета-кит сам является Antigravity-плагином. Установите его прямо с GitHub
+через Antigravity CLI — шесть meta-скиллов, четыре авторских сабагента и
+slash-команды `/meta-*` приезжают в ваши сессии (после — перезапустите
+Antigravity):
 
 ```bash
-# создать новый репозиторий плагина в ./my-plugin/
-npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin
+# клонирует репозиторий, регистрирует плагин, отслеживает в agy plugin list
+agy plugin install https://github.com/sipki-tech/antigravity-meta-plugin-kit
+
+# управление нативно
+agy plugin list
+agy plugin disable antigravity-meta-plugin-kit
+agy plugin uninstall antigravity-meta-plugin-kit
+
+# update = повторный install (заново клонирует последний main)
+agy plugin install https://github.com/sipki-tech/antigravity-meta-plugin-kit
+```
+
+`agy plugin install` — **глобальный**: ставит в `~/.gemini/` для всех
+воркспейсов. Чтобы ограничить плагин одним проектом, **положите его в репо
+руками**: скопируйте payload в
+`<project>/.agents/plugins/antigravity-meta-plugin-kit/` и закоммитьте.
+Команды «установить в проект» нет — Antigravity сам обнаруживает всё, что
+лежит под `.agents/` проекта (проверено: подхватываются обе формы —
+`.agents/plugins/<name>/` и плоская `.agents/skills/<name>/`). См.
+[гайд по манифесту](docs/guides/plugin-manifest.md).
+
+## Быстрый старт
+
+Инструменты `create` и `lint` живут в `scripts/` плагина. Из чекаута этого
+репозитория:
+
+```bash
+S=plugins/antigravity-meta-plugin-kit/scripts
+
+# сгенерировать новый native-only репозиторий плагина в ./my-plugin/
+node "$S/create.mjs" my-plugin
 
 # предпросмотр без записи на диск
-npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin --dry-run
+node "$S/create.mjs" my-plugin --dry-run
 
 # также сгенерировать пример сабагента (agents/*.toml — недокументированный формат)
-npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin --with-agents
+node "$S/create.mjs" my-plugin --with-agents
 
 # проверить существующий плагин (payload или корень скаффолд-репозитория)
-npx github:sipki-tech/antigravity-meta-plugin-kit lint my-plugin
-
-# обойти кэш npx и взять последний коммит
-npx github:sipki-tech/antigravity-meta-plugin-kit#main create my-plugin
+node "$S/lint.mjs" my-plugin
 ```
 
 Затем внутри скаффолда:
@@ -74,31 +110,8 @@ npx github:sipki-tech/antigravity-meta-plugin-kit#main create my-plugin
 ```bash
 cd my-plugin
 npm test                                   # зелёные из коробки
-node bin/cli.mjs install --workspace       # установка в ./.agents/
-node bin/cli.mjs verify --workspace        # именованные health-чеки
 agy plugin validate plugins/my-plugin      # официальный структурный валидатор
-```
-
-## Установка как плагина
-
-Мета-кит сам является Antigravity-плагином. Установка приносит шесть
-meta-скиллов, четырёх авторских сабагентов и slash-команды `/meta-*` прямо в
-ваши сессии:
-
-```bash
-# глобально — все воркспейсы (после — перезапустите Antigravity)
-npx github:sipki-tech/antigravity-meta-plugin-kit install
-
-# в проект (коммитится)
-npx github:sipki-tech/antigravity-meta-plugin-kit install --workspace
-
-# добавить /meta-* slash-команды в текущий проект (после глобальной установки)
-npx github:sipki-tech/antigravity-meta-plugin-kit workflows
-
-# health-чек / обновление / удаление
-npx github:sipki-tech/antigravity-meta-plugin-kit verify
-npx github:sipki-tech/antigravity-meta-plugin-kit#main update
-npx github:sipki-tech/antigravity-meta-plugin-kit uninstall
+agy plugin install plugins/my-plugin       # установка локального payload; agy plugin list для подтверждения
 ```
 
 Сабагенты в комплекте (форматы: 3× TOML, 1× markdown — валидируются оба):
@@ -129,12 +142,14 @@ my-plugin/
 │   ├── agents/                 # только с --with-agents (пример сабагента)
 │   ├── rules/style.md
 │   └── mcp_config.json
-├── installer/                  # журнал/dry-run, определение layout,
-│                               # installed_version.json, неразрушающий MCP-merge
-├── bin/cli.mjs                 # install | verify | uninstall, --workspace, --dry-run
 ├── test/                       # unit + e2e (node --test), зелёные из коробки
-└── .github/workflows/ci.yml
+├── README.md                   # установка через `agy plugin install https://github.com/…`
+└── .github/workflows/ci.yml    # npm test + `agy plugin validate` (когда agy доступен)
 ```
+
+Native-only по построению: ни `bin/` CLI, ни `installer/` — payload
+устанавливается через `agy plugin install`, который клонирует, регистрирует и
+обновляет его.
 
 ## Проверки линтера
 
@@ -165,9 +180,11 @@ Warnings (на код выхода не влияют): hooks.json не в кор
 имени скилла, закоммиченный `installed_version.json`.
 
 Проверка fail-open — эвристика (обёртка `runHook(` или try/catch вокруг
-тела): она ловит типичный промах, а не любой небезопасный скрипт. Ловушка
-`installed_version.json` выводится как warning/note, потому что это артефакт
-времени установки, а не файл payload.
+тела): она ловит типичный промах, а не любой небезопасный скрипт.
+Закоммиченный `installed_version.json` выводится как warning: это артефакт
+времени установки, а не файл payload — его пишет IDE-менеджер плагинов, тогда
+как `agy plugin install` вместо этого отслеживает плагин в
+`import_manifest.json` (см. [internals](docs/internals.md)).
 
 ## Гайды
 
@@ -176,7 +193,7 @@ Warnings (на код выхода не влияют): hooks.json не в кор
 
 | Гайд | Что покрывает |
 |---|---|
-| [Getting started](docs/guides/getting-started.md) · [RU](docs/guides/getting-started.ru.md) | scaffold → lint → test → install → verify, от и до |
+| [Getting started](docs/guides/getting-started.md) · [RU](docs/guides/getting-started.ru.md) | scaffold → lint → test → `agy plugin install`, от и до |
 | [Работа с плагином](docs/guides/using-the-plugin.md) · [RU](docs/guides/using-the-plugin.ru.md) | повседневность: триггеры скиллов, команды /meta-*, делегирование сабагентам, troubleshooting |
 | [Манифест и раскладки](docs/guides/plugin-manifest.md) · [RU](docs/guides/plugin-manifest.ru.md) | поля plugin.json, два мира плагинов, installed_version.json, пути установки |
 | [Хуки](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | все шесть событий, включая недокументированный SessionStart (снят живой пробой), официальные wire-контракты, закон fail-open, матчеры, таймауты |
@@ -185,7 +202,7 @@ Warnings (на код выхода не влияют): hooks.json не в кор
 | [Правила и воркфлоу](docs/guides/rules-workflows.md) · [RU](docs/guides/rules-workflows.ru.md) | иерархия GEMINI.md/AGENTS.md, триггеры правил, workflow-slash-команды |
 | [MCP-серверы](docs/guides/mcp.md) · [RU](docs/guides/mcp.ru.md) | mcp_config.json, транспорты stdio/SSE, конвенция disabled:true, merge/prune |
 | [Тестирование](docs/guides/testing.md) · [RU](docs/guides/testing.ru.md) | zero-dep доктрина node --test, e2e хуков, dry-run-ассерты |
-| [Релиз](docs/guides/shipping.md) · [RU](docs/guides/shipping.ru.md) | дистрибуция npx github:, паттерн update, маркетплейсы, CI-гейты, версии |
+| [Релиз](docs/guides/shipping.md) · [RU](docs/guides/shipping.ru.md) | нативная дистрибуция `agy plugin install`, маркетплейсы, CI-гейты, версии |
 | [Исследование Antigravity](docs/guides/researching-antigravity.md) · [RU](docs/guides/researching-antigravity.ru.md) | откуда взят каждый факт: встроенные доки, строки бинарников, пробы валидатором — и как повторять после обновлений |
 
 ## Скиллы
@@ -231,16 +248,20 @@ wire-контракт записан). Линтер его
 ## FAQ
 
 **Это работает с Antigravity IDE, с CLI (`agy`) или с обоими?**
-С обоими. Скаффолд нацелен на богатый профиль IDE-менеджера плагинов и
-совместим с миром CLI customization root (корневой `hooks.json`, минимальные
-требования к манифесту). См. [гайд по манифесту](docs/guides/plugin-manifest.ru.md).
+Payload, который он генерирует, удовлетворяет форматам **обоих** миров —
+богатый манифест IDE-менеджера плагинов и раскладку CLI customization root
+(корневой `hooks.json`, минимальный манифест). Показанные здесь команды ставят
+через CLI (`agy plugin install`), который пишет в `~/.gemini/config/plugins/`.
+См. [гайд по манифесту](docs/guides/plugin-manifest.ru.md).
 
-**Почему ноль зависимостей?** Кит запускается через `npx github:` на чужих
-машинах; каждая зависимость — это поверхность атаки и время установки.
-Встроенных модулей Node ≥18 достаточно.
+**Почему ноль зависимостей?** Инструменты и хуки запускаются на чужих машинах
+внутри Antigravity; каждая зависимость — это поверхность атаки и время
+установки. Встроенных модулей Node ≥18 (которые Antigravity везёт) достаточно.
 
-**Почему плагин установился, но не загружается?** Почти наверняка ловушка
-`installed_version.json` — см.
+**Почему плагин установился, но не загружается?** Если вы вручную скопировали
+его в `~/.gemini/config/plugins/`, IDE-менеджеру плагинов нужен
+`installed_version.json`, которого он не получил — устанавливайте через
+`agy plugin install`, который регистрирует плагин за вас. См.
 [гайд по манифесту](docs/guides/plugin-manifest.ru.md).
 
 **Можно ли писать хуки не на Node?** Да — любой исполняемый файл (запуск

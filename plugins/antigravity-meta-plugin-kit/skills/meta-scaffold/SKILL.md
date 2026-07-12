@@ -11,10 +11,21 @@ Produce a plugin repository that the Antigravity loader actually loads, by
 starting from a generated skeleton instead of hand-writing files that trip
 undocumented validation.
 
+## The bundled tools
+
+This kit's `create` and `lint` scripts ship inside this plugin. Run them from
+its install directory — write `$KIT` for that path:
+`~/.gemini/config/plugins/antigravity-meta-plugin-kit` for a global install
+(shows in `agy plugin list`), or
+`<project>/.agents/plugins/antigravity-meta-plugin-kit` when it's vendored into
+a project (workspace-discovered — not tracked by `agy plugin list`).
+
 ## Instructions
 
-1. Run `npx github:sipki-tech/antigravity-meta-plugin-kit create <name>`
-   (kebab-case name). Preview first with `--dry-run` if unsure.
+1. Run `node "$KIT/scripts/create.mjs" <name>` (kebab-case name). Preview first
+   with `--dry-run` if unsure. It produces a **native-only** plugin repo — a
+   bare payload plus tests and CI, installed via `agy plugin install`, with no
+   bundled Node installer.
 2. Know what you got — payload anatomy under `plugins/<name>/`:
    - `plugin.json` — the manifest. `author` MUST be an object
      (`{"name": "..."}`), never a string. Officially only `name` is needed
@@ -33,17 +44,20 @@ undocumented validation.
      validator-known but officially undocumented.
    - `mcp_config.json` — MCP servers; entries for optional binaries ship
      `"disabled": true`.
-3. The `installed_version.json` trap: the plugin manager writes
-   `{"version": "<semver>"}` into the installed plugin dir; a raw copy
-   without it is SILENTLY ignored by the loader. The scaffolded installer
-   writes it — never commit it to the payload.
+3. `installed_version.json` is an install-time artifact, NOT a payload file —
+   two install worlds handle it differently: the IDE plugin-manager writes
+   `{"version": "<semver>"}` into the installed copy, while `agy plugin
+   install` instead registers the plugin in `~/.gemini/config/
+   import_manifest.json` and writes no version-file (skills still load —
+   probed 2026-07-12). Either way, never commit it to the payload.
 4. Fill the TODOs in `plugin.json` and the example skill, then re-run
-   `npx github:sipki-tech/antigravity-meta-plugin-kit lint .` from the repo
-   root until every check passes. Also run the official structural validator:
+   `node "$KIT/scripts/lint.mjs" .` from the repo root until every check
+   passes. Also run the official structural validator:
    `agy plugin validate plugins/<name>` — the two cover different ground
    (it: CLI-world structure; lint: IDE traps, rules, workflows, style).
-5. Verify a real install: `node bin/cli.mjs install --workspace` in a scratch
-   project, then `node bin/cli.mjs verify --workspace`.
+5. Verify a real install: `agy plugin install plugins/<name>` (installs the
+   local payload dir), then `agy plugin list` to confirm it registered.
+   `agy plugin uninstall <name>` cleans up.
 
 ## Definition of Done
 
@@ -51,7 +65,7 @@ undocumented validation.
 - `agy plugin validate` reports `[ok]` with hooks/skills processed (when the
   `agy` CLI is available).
 - `npm test` inside the scaffolded repo is green.
-- A real (or `--workspace`) install followed by `verify` is green.
+- A real `agy plugin install` of the payload registers in `agy plugin list`.
 
 ## Constraints
 
@@ -64,8 +78,9 @@ undocumented validation.
 - "I'll hand-write plugin.json, it's just JSON" → the string-`author` and
   missing-`interface` traps are exactly what hand-writing produces; scaffold
   and edit instead.
-- "A raw copy into the plugins dir worked for me once" → without
-  `installed_version.json` the loader ignores the plugin silently; you were
-  probably looking at a copy the plugin manager had registered earlier.
+- "A raw copy into the plugins dir worked for me once" → the IDE
+  plugin-manager needs `installed_version.json` to recognize a dir; `agy
+  plugin install` needs its `import_manifest` entry. A hand-copied dir has
+  neither — install through the CLI and let it register the plugin.
 - "I'll skip lint until the plugin is finished" → lint is how you find loader
   traps while the diff is still small; run it after every payload change.

@@ -21,30 +21,22 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Self-lint — the kit's own payload passes its own linter
-        run: node bin/cli.mjs lint .
-      - name: Smoke — install the kit plugin into a temp workspace
-        run: |
-          tmp="$(mktemp -d)"
-          cd "$tmp"
-          node "$GITHUB_WORKSPACE/bin/cli.mjs" install --workspace
-          node "$GITHUB_WORKSPACE/bin/cli.mjs" verify --workspace
-          node "$GITHUB_WORKSPACE/bin/cli.mjs" uninstall --workspace
-          test ! -e .agents/plugins/antigravity-meta-plugin-kit
+        run: node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs .
       - name: Smoke — create --dry-run writes nothing
         run: |
           tmp="$(mktemp -d)"
           cd "$tmp"
-          node "$GITHUB_WORKSPACE/bin/cli.mjs" create demo-plugin --dry-run | grep -q "would create"
+          node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/create.mjs" demo-plugin --dry-run | grep -q "would create"
           test ! -e demo-plugin
-      - name: Smoke — create, lint, scaffolded tests, installer dry-run
+      - name: Smoke — create a native-only plugin, lint it, run its tests
         run: |
           tmp="$(mktemp -d)"
           cd "$tmp"
-          node "$GITHUB_WORKSPACE/bin/cli.mjs" create demo-plugin
-          node "$GITHUB_WORKSPACE/bin/cli.mjs" lint demo-plugin
+          node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/create.mjs" demo-plugin
+          node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/lint.mjs" demo-plugin
+          test ! -e demo-plugin/bin -a ! -e demo-plugin/installer   # native-only: no installer machinery
           cd demo-plugin
           npm test
-          node bin/cli.mjs install --workspace --dry-run | grep -q "would install"
 
   dogfood:
     runs-on: ubuntu-latest
@@ -57,4 +49,4 @@ jobs:
         run: |
           ref="$(mktemp -d)"
           git clone --depth 1 https://github.com/sipki-tech/antigravity-kit "$ref/antigravity-kit"
-          node bin/cli.mjs lint "$ref/antigravity-kit/plugins/antigravity-kit"
+          node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs "$ref/antigravity-kit/plugins/antigravity-kit"
