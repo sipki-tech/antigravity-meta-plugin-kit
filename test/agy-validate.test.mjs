@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { scaffold } from "../lib/scaffold.mjs";
+import { scaffold } from "../plugins/antigravity-meta-plugin-kit/scripts/lib/scaffold.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const which = spawnSync("which", ["agy"], { encoding: "utf8" });

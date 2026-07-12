@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lintPlugin, hasTrigger } from "../lib/lint.mjs";
-import { parseFrontmatter } from "../lib/frontmatter.mjs";
+import { lintPlugin, hasTrigger } from "../plugins/antigravity-meta-plugin-kit/scripts/lib/lint.mjs";
+import { parseFrontmatter } from "../plugins/antigravity-meta-plugin-kit/scripts/lib/frontmatter.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -47,6 +49,29 @@ test("own payload lints clean: zero FAILs, zero warnings", () => {
     JSON.stringify(result.checks.filter((c) => !c.pass)),
   );
   assert.deepEqual(result.warnings, [], JSON.stringify(result.warnings));
+});
+
+test("bundled dev-tool scripts ship in the payload and run", () => {
+  // The native-delivery contract: create/lint live inside the plugin so they
+  // survive `agy plugin install` (there is no separate npx package anymore).
+  const scripts = join(OWN_PAYLOAD, "scripts");
+  for (const f of ["create.mjs", "lint.mjs"]) {
+    assert.ok(existsSync(join(scripts, f)), `scripts/${f} missing`);
+  }
+  const lint = spawnSync(process.execPath, [join(scripts, "lint.mjs"), ROOT], {
+    encoding: "utf8",
+    timeout: 30000,
+  });
+  assert.equal(lint.status, 0, lint.stdout + lint.stderr);
+  assert.match(lint.stdout, /lint: all checks passed/);
+
+  const create = spawnSync(
+    process.execPath,
+    [join(scripts, "create.mjs"), "demo-x", "--dry-run"],
+    { encoding: "utf8", timeout: 30000, cwd: mkdtempSync(join(tmpdir(), "kit-")) },
+  );
+  assert.equal(create.status, 0, create.stdout + create.stderr);
+  assert.match(create.stdout, /would create/);
 });
 
 test("own skills pass the skill checks", () => {

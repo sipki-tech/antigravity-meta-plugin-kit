@@ -42,7 +42,7 @@ The dir refreshes with the CLI (`.checksum`). Snapshot before updating,
 diff after:
 
 ```bash
-cp -R ~/.gemini/antigravity-cli/builtin /tmp/builtin-$(agy-version)
+cp -R ~/.gemini/antigravity-cli/builtin /tmp/builtin-<version>
 agy update
 diff -r /tmp/builtin-* ~/.gemini/antigravity-cli/builtin
 ```
@@ -88,7 +88,7 @@ Version gotcha: **`agy changelog` lags the binary** (a 1.0.16 install lists
 oracle: scaffold a payload, seed a variation, read what it counts.
 
 ```bash
-node bin/cli.mjs create probe && cd probe/plugins/probe
+node plugins/antigravity-meta-plugin-kit/scripts/create.mjs probe && cd probe/plugins/probe
 mkdir commands && printf -- "---\ndescription: t\n---\nbody\n" > commands/x.md
 TERM=dumb agy plugin validate . | sed 's/\x1b\[[0-9;]*m//g'
 # → "commands : 1 processed (converted to skills)"  ← discovery

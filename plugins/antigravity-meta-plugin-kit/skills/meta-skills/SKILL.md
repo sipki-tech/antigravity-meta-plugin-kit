@@ -43,7 +43,9 @@ give an agent an executable playbook, not an essay.
    /slash-commands automatically. The same format is portable — copy the
    skill dir to `~/.claude/skills/` (Claude Code) or `~/.codex/skills/`
    (Codex).
-6. Validate: `npx github:sipki-tech/antigravity-meta-plugin-kit lint .` —
+6. Validate with this kit's linter, bundled in this plugin's `scripts/`:
+   `node "$KIT/scripts/lint.mjs" .` (where `$KIT` is this plugin's install
+   dir, e.g. `~/.gemini/config/plugins/antigravity-meta-plugin-kit`) —
    frontmatter and trigger checks are enforced.
 
 ## Definition of Done

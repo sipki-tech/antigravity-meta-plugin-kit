@@ -20,6 +20,14 @@ renders it, world 2 ignores the extra fields) and keeps `hooks.json` at the
 plugin root (world 2's official location, world 1 finds it via the manifest
 path).
 
+World 2 is a *discovery* mechanism, not an install command — `agy plugin
+install` is global-only. To scope a plugin to one project, vendor it under the
+project's `.agents/` and commit it; `[OBSERVED 2026-07-12]` both a wrapped
+`.agents/plugins/<name>/` and a flat `.agents/skills/<name>/` (plus
+`.agents/rules/`, `.agents/hooks.json`, `.agents/mcp_config.json`) are picked
+up. In non-interactive `-p` runs name the workspace with `--add-dir <project>`;
+interactive sessions use the launch directory.
+
 ## plugin.json — the authoring profile
 
 ```json
@@ -50,27 +58,34 @@ Field notes:
 - **`name`** — must match the payload directory name (lint enforces it).
 - **`author`** — **must be an object**, never a bare string; a string can
   trip validation silently (observed 2026-07).
-- **`version`** — semver; the installer copies it into
-  `installed_version.json`.
+- **`version`** — semver; the IDE plugin-manager copies it into
+  `installed_version.json` at install time (you never write that file).
 - **`skills` / `rules` / `hooks`** — relative paths; every declared path must
   exist (lint: "declared paths exist").
 - **`interface`** — pure UI metadata for the plugin manager; no runtime
   effect. Ship at least `displayName` + `shortDescription`.
 
-## The `installed_version.json` trap
+## The `installed_version.json` trap — one file, two worlds
 
-The plugin manager writes `{"version": "<semver>"}` into every installed
-plugin dir, and the loader uses it to recognize the plugin as installed. A
-raw copy without it is **silently ignored** — no error, no log line.
+`installed_version.json` is an **install-time artifact**, never a payload
+file — and the two install paths handle it differently:
+
+- **IDE plugin-manager** writes `{"version": "<semver>"}` into every installed
+  plugin dir and uses it to recognize the plugin as installed. A raw hand-copy
+  into `~/.gemini/config/plugins/` without it is **silently ignored** by that
+  surface — no error, no log line.
+- **CLI `agy plugin install`** writes **no** version-file. It records the
+  install centrally in `~/.gemini/config/import_manifest.json`, and the
+  plugin's skills and hooks still load (probed 2026-07-12).
 
 Consequences:
 
-- your installer must write it into every installed copy (the scaffolded
-  `installer/install.mjs` does);
+- let the install path write the file — the IDE plugin-manager does it, and
+  `agy plugin install` registers the plugin instead; you write neither;
 - never commit it into the payload (the scaffolded `.gitignore` excludes it;
   lint warns if it sneaks in);
-- `verify` should check its presence and that it matches `plugin.json`
-  (the scaffolded verify does).
+- to confirm an install, use `agy plugin list` and `agy plugin validate`
+  rather than checking for the file by hand.
 
 ## Install layouts
 
@@ -106,7 +121,8 @@ Paths: `/abs`, `~/home-relative`, otherwise workspace-relative.
 ## Pitfalls
 
 - String `author` → silent validation failure.
-- Missing `installed_version.json` → plugin silently ignored.
+- A hand-copied dir in the IDE world without `installed_version.json` →
+  silently ignored; install through `agy plugin install` instead.
 - Manifest `hooks` pointing at `hooks/hooks.json` → works in the IDE world
   but invisible to `agy plugin validate`; keep the file at the root.
 - Renaming the payload dir without updating `name` → "name matches
@@ -116,7 +132,8 @@ Paths: `/abs`, `~/home-relative`, otherwise workspace-relative.
 
 - [ ] `author` is an object; `version` is semver
 - [ ] all declared paths exist; `hooks` points at root `hooks.json`
-- [ ] installer writes `installed_version.json`; payload never contains it
+- [ ] `installed_version.json` never committed to the payload (the install
+      path writes it, or `agy plugin install` registers instead)
 - [ ] `lint` and `agy plugin validate` both green
 
 *See also: [Getting started](getting-started.md) ·

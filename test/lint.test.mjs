@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scaffold } from "../lib/scaffold.mjs";
+import { scaffold } from "../plugins/antigravity-meta-plugin-kit/scripts/lib/scaffold.mjs";
 import {
   KNOWN_EVENTS,
   flattenHooks,
@@ -20,7 +20,7 @@ import {
   lintPlugin,
   scriptPathOf,
   usesPluginRoot,
-} from "../lib/lint.mjs";
+} from "../plugins/antigravity-meta-plugin-kit/scripts/lib/lint.mjs";
 
 // Each test seeds one defect into a fresh scaffold and asserts that exactly
 // the targeted check flips to fail (or the targeted warning appears).
@@ -276,11 +276,18 @@ test("missing declared path fails", () => {
   assert.ok(names.includes("declared paths exist"), names);
 });
 
-test("payload-only lint emits the installed_version note", () => {
+test("clean payload emits no installed_version note or warning", () => {
+  // Native `agy plugin install` registers the plugin in import_manifest.json
+  // and writes no version-file (skills still load — probed 2026-07-12), so a
+  // clean payload should NOT be flagged for a missing installed_version.json.
   const payload = freshPayload();
   const result = lintPlugin(payload);
-  assert.equal(result.notes.length, 1);
-  assert.match(result.notes[0].note, /silently ignores/);
+  assert.equal(result.notes.length, 0, JSON.stringify(result.notes));
+  assert.equal(
+    result.warnings.filter((w) => w.name.includes("installed_version")).length,
+    0,
+    JSON.stringify(result.warnings),
+  );
 });
 
 test("agents/*.toml: clean scaffold passes, seeded defects fail", () => {

@@ -70,7 +70,7 @@ description: Read-only помощник: проверяет утверждени
 
 ```bash
 # opt-in: формат недокументирован, поэтому за флагом
-npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin --with-agents
+node plugins/antigravity-meta-plugin-kit/scripts/create.mjs my-plugin --with-agents
 ```
 
 `lint` этого кита проверяет каждый `agents/*.toml` (когда папка есть):

@@ -1,6 +1,6 @@
 ---
 name: meta-test
-description: Test Antigravity plugins the zero-dependency way. Use when the user says "meta-test" or writes tests for hooks, installers, or CLIs of an Antigravity plugin.
+description: Test Antigravity plugins the zero-dependency way. Use when the user says "meta-test" or writes tests for hooks, scripts, or the payload of an Antigravity plugin.
 ---
 
 # meta-test — the testing doctrine for plugins
@@ -8,7 +8,7 @@ description: Test Antigravity plugins the zero-dependency way. Use when the user
 ## Goal
 
 Cover a plugin with `node --test` suites (zero dependencies) that prove both
-the logic and the wire contract, so a hook or installer regression never
+the logic and the wire contract, so a hook or script regression never
 reaches a user's session.
 
 ## Instructions
@@ -29,24 +29,23 @@ reaches a user's session.
    empty stdin; a fail-open hook answers allow/silent to all of them. Assert
    the official response keys (`decision`/`reason`) — and the legacy pair
    (`allow_tool`/`deny_reason`) while the template still ships both.
-3. Installer tests run against throwaway roots:
-   `mkdtempSync(join(tmpdir(), "x-"))` as `home` or `workspace` — never the
-   real `~/.gemini`. Assert the journal contract: with `dryRun: true`,
-   `actions.length > 0` AND nothing exists on disk afterwards.
-4. Assert the non-destructive MCP merge: pre-seed a user server in
-   `mcp_config.json`, install, uninstall — the user's entry must survive
-   verbatim.
-5. CLI e2e: `spawnSync(process.execPath, [CLI, ...args], {cwd})`; assert exit
-   code, stdout patterns, and friendly (stack-trace-free) stderr for user
-   errors.
-6. Wire it up: `"test": "node --test test/*.test.mjs"` in package.json; CI
+3. Script/tool tests run against throwaway roots: `mkdtempSync(join(tmpdir(),
+   "x-"))` as the working dir — never the real `~/.gemini`. For any bundled
+   `scripts/` tool that supports `--dry-run` (e.g. a scaffolder), assert the
+   journal contract: `actions.length > 0` AND nothing exists on disk
+   afterwards.
+4. Structural validation: `agy plugin validate plugins/<name>` is the official
+   gate for skills/agents/mcpServers/root hooks.json — run it in CI when `agy`
+   is on PATH. The install itself is the CLI's job (`agy plugin install`), not
+   something the plugin tests.
+5. Wire it up: `"test": "node --test test/*.test.mjs"` in package.json; CI
    runs it on ubuntu+macos × Node 20/22.
 
 ## Definition of Done
 
 - Every hook has a unit test of its logic and an e2e spawn test including a
   junk-input case.
-- A dry-run test proves no filesystem writes.
+- Any `--dry-run` tool has a test proving no filesystem writes.
 - `npm test` is green locally and in the CI matrix.
 
 ## Constraints
@@ -62,5 +61,5 @@ reaches a user's session.
 - "Dry-run obviously works, it's the same code path" → that's exactly why it
   breaks silently when someone adds a write outside the journal; keep the
   assertion.
-- "I'll test on my machine's real config" → then uninstall bugs eat your own
-  `mcp_config.json`; temp dirs are one `mkdtempSync` away.
+- "I'll run my tools against my real config" → then a bug eats your own
+  `~/.gemini`; temp dirs are one `mkdtempSync` away.

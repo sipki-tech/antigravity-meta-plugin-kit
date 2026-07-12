@@ -36,6 +36,17 @@ expectations:
    directory name); components sit at fixed relative paths: root
    `hooks.json`, `mcp_config.json`, `rules/*.md`, `skills/<name>/SKILL.md`.
 
+`[OBSERVED 2026-07-12]` Workspace discovery loads **both** shapes of world 2:
+a plugin-wrapped `.agents/plugins/<name>/skills/…` and a **flat** customization
+root (`.agents/skills/<name>/SKILL.md`, `.agents/rules/*.md`,
+`.agents/hooks.json`, `.agents/mcp_config.json`). This is a *discovery*
+mechanism — you place the files and commit them, there is no per-project
+install command (`agy plugin install` is global-only). Workspace beats global
+in priority. Recognition of the workspace: an interactive session uses the
+directory you launched `agy` in; non-interactive `-p` needs an explicit
+`--add-dir <project>` (probed — a vendored plugin returned zero skills from
+cwd alone, all six once `--add-dir` was set).
+
 This kit's linter enforces an **authoring profile** for world 1 (the strict
 manifest rules below); a payload that passes it also satisfies world 2.
 
@@ -52,16 +63,28 @@ the Antigravity loader needs `[MEDIUM]`.
 
 ## Loader traps
 
-### 1. `installed_version.json` — the silent-ignore trap
+### 1. `installed_version.json` — an install-time artifact, two worlds
 
-`[OBSERVED 2026-07]` The IDE plugin manager writes `{"version": "<semver>"}`
-into every installed plugin dir; the loader uses it to recognize the plugin as
-installed. A raw copy without it is **silently ignored** — no error, no log.
-Any installer must write it; never commit it to the payload. The literal now
-also appears in the agy binary itself, not just the app sidecars
+`[OBSERVED 2026-07]` Two install paths track a plugin differently, and neither
+wants the file committed to the payload:
+
+- **IDE plugin-manager** writes `{"version": "<semver>"}` into every installed
+  plugin dir and uses it to recognize the plugin as installed. A raw hand-copy
+  into `config/plugins/` without it is **silently ignored** by that surface —
+  no error, no log. (Google's `science`/`chrome-devtools-plugin` and the two
+  sipki-tech kits all carry the file when installed this way.)
+- **CLI `agy plugin install`** writes **no** version-file. It records the
+  install centrally in `~/.gemini/config/import_manifest.json`
+  (`{name, source, importedAt, components}`), and the plugin's skills/hooks
+  still load in a live session `[OBSERVED 2026-07-12, probe: installed the
+  meta-kit via `agy plugin install <dir>`, then `agy -p` in a scratch
+  workspace listed all six meta-* skills; uninstall cleared both the dir and
+  the manifest entry]`.
+
+So: never ship `installed_version.json`; let the install path register the
+plugin. The literal appears in the agy binary too, not just the app sidecars
 `[OBSERVED 2026-07-11, 1.1.1 strings]`.
-*Covered by:* installer template writes it; lint warns/notes; scaffolded
-`verify` checks it.
+*Covered by:* lint warns when it is committed to a payload.
 
 ### 1b. Updates wipe third-party plugins from `~/.gemini/config/plugins/`
 
@@ -71,10 +94,11 @@ re-provisioning (the same moment Google's `science` plugin was installed;
 (`antigravity-kit`, `antigravity-meta-plugin-kit`) were **deleted** from
 `~/.gemini/config/plugins/` while Google-managed ones survived. CLI logs
 prove both loaded fine on 2026-07-06 and were gone by 2026-07-11. An
-installed plugin is therefore not durable across updates: re-run `verify`
-after any Antigravity/app update and keep `update` one command away.
-*Covered by:* `verify` command (named checks); this kit's docs recommend a
-post-update `verify` habit.
+installed plugin is therefore not durable across updates: after any
+Antigravity/app update, check `agy plugin list` and re-run
+`agy plugin install https://github.com/<owner>/<repo>` (it re-clones and
+re-registers) if a plugin went missing.
+*Covered by:* this kit's docs recommend a post-update `agy plugin list` habit.
 
 ### 2. `author` must be an object
 
@@ -459,16 +483,39 @@ ArtifactMetadata."
 
 ### `agy plugin` CLI
 
-`[OFFICIAL 2026-07]` `agy plugin install <target>` (supports
-`plugin@marketplace`), `uninstall`, `enable`/`disable`, `list` (tracks
-*imported* plugins only), `import [gemini|claude]` (imports Claude Code
-plugins), `link <marketplace> <target>`, and **`validate [path]`** — the
-official structural validator (checks skills/agents/commands/mcpServers/root
+`[OFFICIAL 2026-07]` `agy plugin install <target>`, `uninstall`,
+`enable`/`disable`, `list` (tracks CLI-installed plugins),
+`import [gemini|claude]` (imports Claude Code plugins),
+`link <marketplace> <target>`, and **`validate [path]`** — the official
+structural validator (checks skills/agents/commands/mcpServers/root
 hooks.json; ignores rules/workflows/manifest style — run both validators).
 CLI 1.0.9+: plugin installs resolve git submodules. Quirk: the built-in
 `agy changelog` can lag several versions behind the actual binary (a 1.0.16
 install lists 1.0.10 as its top entry) — trust `agy update`'s "current
 version" line, not the changelog header.
+
+**`install <target>` accepts three target forms** `[OBSERVED 2026-07-12,
+probes on 1.1.1]`:
+
+1. **an `https://github.com/<owner>/<repo>` URL** → the CLI clones it
+   (`Cloning plugin from …git...`), scans for a top-level `plugins/`
+   directory (`Found bulk plugins directory`), and installs each plugin under
+   it. This is the canonical remote one-liner — e.g. DataRobot documents
+   `agy plugin install https://github.com/datarobot-oss/datarobot-agent-skills.git`.
+   A bare `git@github.com:owner/repo.git` is parsed by an SSH regex too;
+   shorthands `github:owner/repo` and `owner/repo` are **rejected**
+   (`install target must be a directory`).
+2. **a local directory** → installs that payload dir directly.
+3. **`<plugin>@<marketplace>`** → marketplace resolve (unknown name →
+   `unknown marketplace: <name>`).
+
+All three land the payload in `~/.gemini/config/plugins/<name>/` and register
+it in `~/.gemini/config/import_manifest.json` — no `installed_version.json`
+is written (see loader trap #1). `uninstall <name>` removes the dir and the
+manifest entry. There is **no** `agy plugin update`; re-running `install`
+re-clones. This is why this kit ships as a bare payload and delegates all
+install/update/uninstall to `agy plugin` rather than carrying its own
+installer.
 
 ### CLI 1.1.1 surface additions
 
@@ -484,13 +531,15 @@ default 5m — the enabler for scripted probes), `--prompt-interactive`/`-i`,
 and a `loaded N named hooks from M hooks.json file(s)` summary — the
 fastest way to see whether your plugin's hooks actually loaded.
 
-### GitHub-only npx distribution
+### Native distribution — `agy plugin install`
 
-`[OBSERVED 2026-07]` `npx github:<owner>/<repo>` installs via `npm pack`,
-which silently drops files named `.gitignore` and treats nested
-`package.json` specially — template such files under safe names
-(`_gitignore`, `_package.json`) and rename at generation. npx caches the
-checkout; `#main` forces the latest commit.
+`[OBSERVED 2026-07-12]` The kit installs through Antigravity's own CLI (see
+Distribution above): `agy plugin install https://github.com/<owner>/<repo>`
+clones and registers the plugin — no npm/npx package, no `bin/`, no
+`installed_version.json` to stamp. The scaffold templates still store dotfiles
+and nested manifests under safe names (`_gitignore`, `_package.json`) so they
+stay inert while bundled inside this plugin's payload, and the scaffolder
+renames them to their real names at generation time.
 
 ## Refuted rumors
 

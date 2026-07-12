@@ -44,25 +44,29 @@ If `command` is anything but a universally available launcher (`node`,
 `npx`), a user without that binary gets broken sessions. So:
 
 - ship such entries with `"disabled": true`;
-- have the **installer** detect the binary and enable the entry only when
-  it's actually present (the reference antigravity-kit does exactly this for
-  its optional `headroom` CLI).
+- flip a `"disabled": true` entry to enabled only once the binary is confirmed
+  present — do it in the tool or setup step that provisions the server, not by
+  shipping it enabled (the reference antigravity-kit gates its optional
+  `headroom` CLI this way).
 
 This kit's lint fails a payload whose non-builtin command lacks
 `disabled: true`. Note: an empty `"mcpServers": {}` is reported by
 `agy plugin validate` as `skipped (not found)` — that's fine.
 
-## Non-destructive merge & prune (installer contract)
+## Non-destructive merge & prune (config contract)
 
-When your installer merges plugin servers into the user's `mcp_config.json`:
+A native plugin ships its servers in the payload's `mcp_config.json`; the
+scaffold has no installer — `agy plugin install` resolves the config and
+Antigravity manages it. If you write any tool that merges servers into a
+user's `mcp_config.json`, hold to the same contract:
 
 - **never overwrite** an entry the user already has — if the name exists,
   skip it;
-- on uninstall, **prune only entries byte-identical** to what you installed;
+- when removing, **prune only entries byte-identical** to what you added;
   anything the user edited stays.
 
-The scaffolded `installer/install.mjs` implements both; the scaffolded tests
-assert them (a user-defined server survives install + uninstall).
+The scaffolded tests assert this contract for any such tool (a user-defined
+server survives a merge + prune round-trip).
 
 ## Pitfalls
 
@@ -74,7 +78,7 @@ assert them (a user-defined server survives install + uninstall).
 ## Checklist
 
 - [ ] every non-`node`/`npx` command ships `disabled: true`
-- [ ] installer auto-enables only when the binary is detected
+- [ ] the entry is enabled only once the binary is confirmed present
 - [ ] merge skips existing user entries; prune removes only exact matches
 - [ ] no secrets in committed `env`
 - [ ] `lint` passes the MCP checks

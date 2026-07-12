@@ -40,27 +40,33 @@ assert.equal(out.allow_tool, true);   // legacy-ключ, пока шаблон 
 (`{"totally": "unexpected"}`) и пустой stdin. Fail-open хук отвечает
 allow/silent с exit 0 на все.
 
-## Тесты инсталлера — временные корни, никогда не ваш реальный home
+## Тесты скриптов/инструментов — временные корни, никогда не ваш реальный home
+
+У native-only payload нет инсталлера, который надо тестировать; установка —
+это работа Antigravity CLI (`agy plugin install`). Тестируете вы любой
+инструмент из `scripts/`, всегда против выбрасываемого корня:
 
 ```js
 const home = mkdtempSync(join(tmpdir(), "my-plugin-test-"));
-install({ home });                    // или { workspace: dir }
+runTool({ home });                    // или { workspace: dir }
 ```
 
-Явно проверяйте контракт журнала:
+Для любого инструмента с `--dry-run` (например, скаффолдера) явно проверяйте
+контракт журнала:
 
 ```js
-const { actions } = install({ home, dryRun: true });
+const { actions } = runTool({ home, dryRun: true });
 assert.ok(actions.length > 0);                      // план существует
 assert.equal(existsSync(join(home, ".gemini")), false);  // ничего не записано
 ```
 
-И контракт MCP: подсадите пользовательский сервер, выполните install и
-uninstall, проверьте, что запись пользователя выжила байт-в-байт.
+Если инструмент мерджит MCP-конфиг, проверьте контракт: подсадите
+пользовательский сервер, выполните merge и prune, убедитесь, что запись
+пользователя выжила байт-в-байт.
 
-## CLI e2e
+## E2e инструмента
 
-`spawnSync(process.execPath, [CLI, ...args], { cwd })`; проверяйте код
+`spawnSync(process.execPath, [tool, ...args], { cwd })`; проверяйте код
 выхода, паттерны stdout и что пользовательские ошибки печатают дружелюбное
 сообщение без стектрейса.
 

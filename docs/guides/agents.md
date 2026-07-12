@@ -68,7 +68,7 @@ You are the my-plugin helper subagent. …
 
 ```bash
 # opt-in: the format is undocumented, so it's behind a flag
-npx github:sipki-tech/antigravity-meta-plugin-kit create my-plugin --with-agents
+node plugins/antigravity-meta-plugin-kit/scripts/create.mjs my-plugin --with-agents
 ```
 
 This kit's `lint` checks every `agents/*.toml` (when the dir exists):

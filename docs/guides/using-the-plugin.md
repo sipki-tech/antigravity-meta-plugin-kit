@@ -3,18 +3,17 @@
 *English | [Русский](using-the-plugin.ru.md)*
 
 What you actually get after
-`npx github:sipki-tech/antigravity-meta-plugin-kit install` — and how to
-drive it from a live Antigravity session.
+`agy plugin install https://github.com/sipki-tech/antigravity-meta-plugin-kit`
+— and how to drive it from a live Antigravity session.
 
 ## After installing
 
 1. **Restart Antigravity** — the loader picks plugins up on start.
-2. Global install serves every workspace; per-project slash commands need
-   one extra step in each project:
-   `npx github:sipki-tech/antigravity-meta-plugin-kit workflows`
-   (drops `/meta-*` aliases into `<project>/.agents/workflows/`).
-3. Health check anytime:
-   `npx github:sipki-tech/antigravity-meta-plugin-kit verify`.
+2. A single install serves every workspace; the `/meta-*` slash commands ship
+   inside the plugin payload, so they land wherever the plugin is installed —
+   no per-project step.
+3. Confirm anytime: `agy plugin list` shows it's registered; `agy plugin
+   validate plugins/antigravity-meta-plugin-kit` checks its structure.
 
 ## The six skills — fire by phrasing
 
@@ -27,7 +26,7 @@ Skills route on their descriptions; say the trigger (or ask in its terms):
 | "meta-skills — review my SKILL.md" | `meta-skills` | frontmatter/trigger/structure discipline |
 | "meta-agents — add a subagent" | `meta-agents` | both formats, delegation-surface descriptions, workflow wrappers |
 | "meta-test — cover my hook with tests" | `meta-test` | the zero-dep node --test doctrine |
-| "meta-ship — prepare the release" | `meta-ship` | npx distribution, gates, versioning checklist |
+| "meta-ship — prepare the release" | `meta-ship` | native agy plugin install distribution, gates, versioning checklist |
 
 ## The four subagents — delegate heavy work
 
@@ -62,17 +61,21 @@ you:  meta-ship — release checklist
 ## Troubleshooting
 
 - **Skills don't fire after install** — did you restart Antigravity? Then
-  `verify`; the classic silent killer is a missing
-  `installed_version.json` (verify checks it).
-- **`/meta-*` unknown in a project** — run the `workflows` command in that
-  project; global install alone doesn't add per-project aliases.
+  `agy plugin list` to confirm it registered. If you hand-copied the dir into
+  `~/.gemini/config/plugins/` instead of using `agy plugin install`, the IDE
+  plugin-manager never got its `installed_version.json` and ignores it —
+  re-install through the CLI.
+- **`/meta-*` unknown in a project** — the commands ship in the payload;
+  confirm the plugin itself loaded (`agy plugin list`) and restart Antigravity.
 - **A subagent doesn't spawn** — the host injects installed plugins'
   subagents into the main agent's prompt (confirmed, see
   [internals](../internals.md)), so a miss usually means the plugin didn't
-  load (run `verify`) or the phrasing didn't match the agent's description;
-  the workflow body still guides the main agent to do the job itself.
-- **Stale version** — `npx github:sipki-tech/antigravity-meta-plugin-kit#main update`
-  (mind the `#main`: npx caches).
+  load (`agy plugin list`) or the phrasing didn't match the agent's
+  description; the workflow body still guides the main agent to do the job
+  itself.
+- **Stale version** — re-run `agy plugin install
+  https://github.com/sipki-tech/antigravity-meta-plugin-kit` (it re-clones the
+  latest `main`); there is no `agy plugin update`.
 
 *See also: [Getting started](getting-started.md) ·
 [Subagents](agents.md) · [trap registry](../internals.md)*

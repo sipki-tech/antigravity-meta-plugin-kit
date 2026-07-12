@@ -90,7 +90,7 @@ strings -n 6 "/Applications/Antigravity IDE.app/Contents/Resources/app/extension
 что он посчитал.
 
 ```bash
-node bin/cli.mjs create probe && cd probe/plugins/probe
+node plugins/antigravity-meta-plugin-kit/scripts/create.mjs probe && cd probe/plugins/probe
 mkdir commands && printf -- "---\ndescription: t\n---\nbody\n" > commands/x.md
 TERM=dumb agy plugin validate . | sed 's/\x1b\[[0-9;]*m//g'
 # → "commands : 1 processed (converted to skills)"  ← открытие
