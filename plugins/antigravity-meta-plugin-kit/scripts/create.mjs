@@ -10,7 +10,7 @@ const HELP = `usage: node ./scripts/create.mjs <plugin-name> [--dir <parent>] [-
 
   <plugin-name>    kebab-case name; a native-only plugin repo is created in ./<plugin-name>/
   --dir <parent>   parent directory for the scaffold (default: cwd)
-  --with-agents    also scaffold an example subagent (agents/*.toml)
+  --with-agents    also scaffold an example subagent (agents/*.md)
   --dry-run        print the plan without writing anything`;
 
 function main() {

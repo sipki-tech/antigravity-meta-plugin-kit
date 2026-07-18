@@ -107,7 +107,7 @@ node "$S/create.mjs" my-plugin
 # предпросмотр без записи на диск
 node "$S/create.mjs" my-plugin --dry-run
 
-# также сгенерировать пример сабагента (agents/*.toml — недокументированный формат)
+# также сгенерировать пример сабагента (agents/*.md — недокументированный формат)
 node "$S/create.mjs" my-plugin --with-agents
 
 # проверить существующий плагин (payload или корень скаффолд-репозитория)
@@ -123,7 +123,7 @@ agy plugin validate plugins/my-plugin      # официальный структ
 agy plugin install plugins/my-plugin       # установка локального payload; agy plugin list для подтверждения
 ```
 
-Сабагенты в комплекте (форматы: 3× TOML, 1× markdown — валидируются оба):
+Сабагенты в комплекте (формат: 4× markdown — валидируются):
 
 | Сабагент | Права | Работа |
 |---|---|---|
@@ -207,7 +207,7 @@ Warnings (на код выхода не влияют): hooks.json не в кор
 | [Манифест и раскладки](docs/guides/plugin-manifest.md) · [RU](docs/guides/plugin-manifest.ru.md) | поля plugin.json, два мира плагинов, installed_version.json, пути установки |
 | [Хуки](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | все шесть событий, включая недокументированный SessionStart (снят живой пробой), официальные wire-контракты, закон fail-open, матчеры, таймауты |
 | [Скиллы](docs/guides/skills.md) · [RU](docs/guides/skills.ru.md) | анатомия SKILL.md, триггер-фразы, progressive disclosure, XML-шаблоны промптов |
-| [Сабагенты](docs/guides/agents.md) · [RU](docs/guides/agents.ru.md) | формат agents/*.toml, модели, промпты, валидация |
+| [Сабагенты](docs/guides/agents.md) · [RU](docs/guides/agents.ru.md) | формат agents/*.md, модели, промпты, валидация |
 | [Правила и воркфлоу](docs/guides/rules-workflows.md) · [RU](docs/guides/rules-workflows.ru.md) | иерархия GEMINI.md/AGENTS.md, триггеры правил, workflow-slash-команды |
 | [MCP-серверы](docs/guides/mcp.md) · [RU](docs/guides/mcp.ru.md) | mcp_config.json, транспорты stdio/SSE, конвенция disabled:true, merge/prune |
 | [Тестирование](docs/guides/testing.md) · [RU](docs/guides/testing.ru.md) | zero-dep доктрина node --test, e2e хуков, dry-run-ассерты |

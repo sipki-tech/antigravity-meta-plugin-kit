@@ -105,7 +105,7 @@ node "$S/create.mjs" my-plugin
 # preview without writing anything
 node "$S/create.mjs" my-plugin --dry-run
 
-# also scaffold an example subagent (agents/*.toml — undocumented format)
+# also scaffold an example subagent (agents/*.md — undocumented format)
 node "$S/create.mjs" my-plugin --with-agents
 
 # validate an existing plugin (payload dir or scaffolded repo root)
@@ -121,7 +121,7 @@ agy plugin validate plugins/my-plugin      # official structural validator
 agy plugin install plugins/my-plugin       # install the local payload; agy plugin list to confirm
 ```
 
-The bundled subagents (formats: 3× TOML, 1× markdown — both validated):
+The bundled subagents (format: 4× markdown — validated):
 
 | Subagent | Rights | Job |
 |---|---|---|
@@ -205,7 +205,7 @@ English and Russian:
 | [Plugin manifest & layouts](docs/guides/plugin-manifest.md) · [RU](docs/guides/plugin-manifest.ru.md) | plugin.json fields, the two plugin worlds, installed_version.json, install paths |
 | [Hooks](docs/guides/hooks.md) · [RU](docs/guides/hooks.ru.md) | all six events incl. the undocumented SessionStart (probed live), official wire contracts, fail-open law, matchers, timeouts |
 | [Skills](docs/guides/skills.md) · [RU](docs/guides/skills.ru.md) | SKILL.md anatomy, trigger phrases, progressive disclosure, XML prompt templates |
-| [Subagents](docs/guides/agents.md) · [RU](docs/guides/agents.ru.md) | agents/*.toml format, models, prompts, validation |
+| [Subagents](docs/guides/agents.md) · [RU](docs/guides/agents.ru.md) | agents/*.md format, models, prompts, validation |
 | [Rules & workflows](docs/guides/rules-workflows.md) · [RU](docs/guides/rules-workflows.ru.md) | GEMINI.md/AGENTS.md hierarchy, rule triggers, workflow slash-commands |
 | [MCP servers](docs/guides/mcp.md) · [RU](docs/guides/mcp.ru.md) | mcp_config.json, stdio/SSE transports, the disabled:true convention, merge/prune |
 | [Testing](docs/guides/testing.md) · [RU](docs/guides/testing.ru.md) | zero-dep node --test doctrine, hook e2e, dry-run assertions |

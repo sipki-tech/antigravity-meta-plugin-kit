@@ -73,7 +73,7 @@ function renderTree(journal, from, to, vars) {
     );
     const destPath = join(to, destName);
     if (entry.isDirectory()) {
-      // agents/*.toml is validator-known but officially undocumented — only
+      // agents/*.md is validator-known but officially undocumented — only
       // scaffold the example subagent on explicit request.
       if (entry.name === "agents" && !vars.withAgents) continue;
       renderTree(journal, srcPath, destPath, vars);

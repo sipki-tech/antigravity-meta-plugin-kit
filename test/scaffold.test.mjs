@@ -58,15 +58,15 @@ test("scaffold --with-agents renders the example subagent", () => {
     parentDir: parent,
     withAgents: true,
   });
-  const toml = join(
+  const md = join(
     targetDir,
     "plugins",
     "demo-plugin",
     "agents",
-    "demo-plugin-helper.toml",
+    "demo-plugin-helper.md",
   );
-  assert.ok(existsSync(toml));
-  assert.match(readFileSync(toml, "utf8"), /^name = "demo-plugin-helper"$/m);
+  assert.ok(existsSync(md));
+  assert.match(readFileSync(md, "utf8"), /^name: demo-plugin-helper$/m);
   const result = lintPlugin(join(targetDir, "plugins", "demo-plugin"));
   assert.ok(result.pass, JSON.stringify(result.checks.filter((c) => !c.pass)));
 });

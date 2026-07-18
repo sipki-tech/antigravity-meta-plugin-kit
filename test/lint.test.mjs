@@ -290,21 +290,21 @@ test("clean payload emits no installed_version note or warning", () => {
   );
 });
 
-test("agents/*.toml: clean scaffold passes, seeded defects fail", () => {
+test("agents/*.md: clean scaffold passes, seeded defects fail", () => {
   const payload = freshPayload({ withAgents: true });
   const result = lintPlugin(payload);
   assert.ok(result.pass, JSON.stringify(failing(result)));
 
-  const agentFile = join(payload, "agents", "demo-plugin-helper.toml");
+  const agentFile = join(payload, "agents", "demo-plugin-helper.md");
   const original = readFileSync(agentFile, "utf8");
 
-  writeFileSync(agentFile, original.replace(/^name = ".*"$/m, 'name = "other"'));
+  writeFileSync(agentFile, original.replace(/^name: .*$/m, 'name: other'));
   assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
 
-  writeFileSync(agentFile, original.replace(/^description = .*$/m, ""));
+  writeFileSync(agentFile, original.replace(/^description: .*$/m, ""));
   assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
 
-  writeFileSync(agentFile, original + '\nbroken = """\n');
+  writeFileSync(agentFile, original.replace(/^---/m, "no frontmatter"));
   assert.deepEqual(failing(lintPlugin(payload)), ["agents/* minimally valid"]);
 });
 
