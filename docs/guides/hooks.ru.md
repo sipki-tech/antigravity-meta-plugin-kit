@@ -1,25 +1,31 @@
-# Хуки: события жизненного цикла, wire-контракты и закон fail-open
+# Хуки жизненного цикла
 
-*[English](hooks.md) | Русский*
+[English](hooks.md) | Русский
 
-Хуки запускают внешние команды в фиксированных точках агентского цикла:
-гейтят вызовы инструментов, инжектят контекст, не дают сессии остановиться.
-Контракты ниже — из официальных доков внутри CLI (2026-07, CLI 1.0.16; на
-1.1.1 без изменений),
-сверены с бинарником.
+Хуки жизненного цикла позволяют плагину проверять, блокировать, модифицировать
+или аннотировать ходы агента в шести детерминированных точках цикла Antigravity.
+Все протокольные контракты и ловушки ниже подтверждены живыми пробами на
+`agy 1.5.17`.
 
-## hooks.json — форма файла
+## Расположение и схема `hooks.json`
 
-Расположение: **корень плагина** (`plugins/<name>/hooks.json`) —
-официальное место и единственное, которое видит `agy plugin validate`.
-Ключи верхнего уровня — **имена хуков** (любые строки; имя плагина — хорошая
-конвенция против коллизий). Никогда не ставьте имя события на верхний
-уровень — это форма `settings.json` из Claude Code, здесь она не загрузится.
+- Файл должен лежать строго по пути `<plugin>/hooks.json` в **строгом JSON**
+  (комментарии и висячие запятые дают жёсткую ошибку; `hooks/hooks.json` в
+  нативных плагинах не загружается).
+- Ключи верхнего уровня — **именованные группы хуков** (имена событий в корне
+  вызывают жёсткую ошибку). У группы можно указать `"enabled": false`.
+- Каждый обработчик задаёт `"type": "command"`, `"command"` (выполняется через
+  `sh -c` из корня плагина) и `"timeout"` (целые секунды, по умолчанию `30`; с
+  `1.5.14` при таймауте убивается вся группа процессов).
+- Запускайте скрипты относительным путём `node ./scripts/guard.mjs`. **Не**
+  пишите `${PLUGIN_ROOT}` или `$PLUGIN_ROOT` в `command` — `agy plugin validate
+  --strict` отклоняет это (рантайм уже выставляет `cwd` в корень плагина и
+  передаёт `PLUGIN_ROOT`, а для установленных плагинов ещё и `PLUGIN_DATA` в
+  переменных окружения).
 
 ```json
 {
-  "my-plugin": {
-    "enabled": true,
+  "my-plugin-guards": {
     "PreToolUse": [
       {
         "matcher": "run_command",
@@ -27,155 +33,172 @@
           {
             "type": "command",
             "command": "node ./scripts/example-guard.mjs",
-            "timeout": 10,
-            "statusMessage": "my-plugin: guard"
+            "timeout": 10
           }
         ]
       }
-    ],
-    "Stop": [
-      { "type": "command", "command": "node ./scripts/keep-going.mjs", "timeout": 10 }
     ]
   }
 }
 ```
 
-- Именованные хуки из всех конфигов/плагинов **мерджатся**; обработчики
-  одного события выполняются последовательно.
-- `"enabled": false` временно выключает именованный хук.
-- Поля обработчика: `type` (необязателен; существует только `"command"`),
-  `command` (обязателен; `sh -c` на Unix, `cmd /c` на Windows; `~`
-  разворачивается; **cwd = директория hooks.json**), `timeout` (секунды,
-  **default 30** — ставьте 10–15 явно; хуки блокируют цикл синхронно).
-  `statusMessage` — IDE-косметика, не официальное поле.
+## Шесть нативных событий
 
-## Шесть событий
-
-| Событие | Срабатывает | Структура |
+| Событие | Формат в JSON | Когда срабатывает |
 |---|---|---|
-| `SessionStart` | на старте разговора | плоский список |
-| `PreToolUse` | перед шагом инструмента | matcher-группа |
-| `PostToolUse` | после шага инструмента | matcher-группа |
-| `PreInvocation` | перед вызовом модели | плоский список |
-| `PostInvocation` | после завершения tool-вызовов | плоский список |
-| `Stop` | при завершении цикла | плоский список |
+| `SessionStart` | плоский `[handler, ...]` | Один раз при старте новой сессии. |
+| `PreToolUse` | сгруппированный `[{"matcher": "<regex>", "hooks": [...]}]` | До запуска подходящего инструмента; может разрешить, запретить, запросить подтверждение или переписать аргументы. |
+| `PostToolUse` | сгруппированный `[{"matcher": "<regex>", "hooks": [...]}]` | После завершения инструмента (логирование, телеметрия, сайд-эффекты). |
+| `PreInvocation` | плоский `[handler, ...]` | Перед вызовом модели; может инжектить шаги или прервать ход. |
+| `PostInvocation` | плоский `[handler, ...]` | После вызова модели; может инжектить шаги, прервать или сделать `force_continue`. |
+| `Stop` | плоский `[handler, ...]` | Перед остановкой агента; может отпустить ход или потребовать продолжение. |
 
-`SessionStart` стоит особняком: его нет в официальных доках (там пять
-событий), он был опровергнут по бинарнику 1.0.16, а затем подтверждён вживую
-на 1.1.1 (проба, 2026-07-12) — срабатывает по разу на старт разговора.
+Регулярные выражения `matcher` в `PreToolUse` / `PostToolUse` должны совпадать с
+нативными именами инструментов Antigravity (`run_command`, `write_file`,
+`edit_file`, `read_file`). Плоские массивы на tool-событиях тихо не запускаются;
+matcher-группы на плоских событиях дают жёсткую ошибку.
 
-Матчеры (только для групповых событий): `""`/`"*"` = все инструменты; иначе
-regex (`run_command`, `run_command|view_file`, `browser_.*`). Имена
-инструментов — lowercased суффиксы `CORTEX_STEP_TYPE_*`.
+## Общие поля stdin
 
-## Wire-контракты
+Живые пробы подтвердили, что **все 6 событий** (включая `SessionStart`) получают
+полный camelCase protojson конверт в `stdin`:
 
-JSON на stdin → JSON на stdout. Все ключи camelCase. Общие поля входа:
-`conversationId`, `workspacePaths[]`, `transcriptPath`,
-`artifactDirectoryPath`, `modelName` (сегмент директории транскрипта зависит
-от поверхности: `antigravity-cli/`, `antigravity/`, `antigravity-ide/`).
+- `conversationId` — уникальный ID диалога
+- `workspacePaths` — массив активных директорий воркспейса
+- `transcriptPath` — путь к файлу транскрипта
+- `artifactDirectoryPath` — путь к директории артефактов
+- `modelName` — ID текущей модели
+- `lastUserInput` — последнее сообщение пользователя
+- `hookEventName` — имя события (`SessionStart`, `PreToolUse` и т.д.)
+- `cwd` — рабочая директория **агента** (отличается от `process.cwd()` самого
+  хука, который равен корню плагина)
 
-### SessionStart — старт разговора (недокументирован; проба 2026-07-12)
+## Контракты и ответы по событиям
 
-Вход: только общие поля — без событийно-специфичных добавок. Отвечайте `{}`
-(единственный проверенный ответ; result-proto существует, так что более
-богатые ответы могут работать — пробуйте пробой, прежде чем полагаться).
+### `SessionStart`
 
-### PreToolUse — гейт вызовов инструментов
+- **Дополнительные поля stdin:** нет (только 8 общих полей).
+- **Stdout:** `{}` (ничего не делать) или `{"injectSteps": [...]}` (обычно шаг
+  `systemMessage` для инициализации контекста сессии).
 
-Вход дополняется `toolCall.name`, `toolCall.args` (например `CommandLine`),
-`stepIdx`.
+### `PreToolUse` (включая `overwrite`)
 
-```json
-{ "decision": "deny", "reason": "rm -rf / не пройдёт", "permissionOverrides": [] }
-```
-
-`decision`: `allow` | `deny` | `ask` (спросить пользователя; уважает кэш
-«Always Allow») | `force_ask` (игнорировать кэш). Legacy-диалект
-`{"allow_tool": bool, "deny_reason": "…"}` текущие сборки ещё парсят
-(перепроверено на 1.1.1) — скаффолдный `denyResponse()` эмитит **оба**
-диалекта, пока легаси не умрёт.
-
-### PostToolUse — наблюдение за результатами
-
-Вход несёт `error`, если инструмент упал. Выход: **`{}`**. Не пытайтесь
-инжектить здесь — это не верифицировано, а официальный контракт ждёт пустой
-объект.
-
-### PreInvocation — инъекция контекста
+- **Дополнительные поля stdin:** `toolCall: { id, name, args }`, `stepIdx`.
+- **Stdout:**
+  - Разрешить: `{"decision": "allow"}`
+  - Запретить: `{"decision": "deny", "reason": "Объясните причину, чтобы агент адаптировался"}`
+  - Спросить пользователя: `{"decision": "ask", "reason": "...", "permissionOverrides"?: [...]}`
+    или `{"decision": "force_ask", ...}`
+  - Переписать аргументы перед выполнением (**проверено вживую на `1.5.17`**):
 
 ```json
-{ "injectSteps": [
-    { "userMessage": "видимое инжектированное сообщение" },
-    { "ephemeralMessage": "временное системное сообщение" },
-    { "toolCall": { "name": "…", "args": {} } } ] }
+{
+  "decision": "allow",
+  "overwrite": { "CommandLine": "npm test -- --reporter=spec" }
+}
 ```
 
-`{}` = тихий no-op.
+`overwrite` делает поверхностное слияние ключей верхнего уровня в `toolCall.args`
+и добавляет к результату инструмента уведомление об изменённых ключах.
 
-### PostInvocation — механизм «продолжай работать»
+### `PostToolUse`
 
-Вход как у PreInvocation. Выход:
+- **Дополнительные поля stdin:** `toolCall`, `stepIdx`, `error`.
+- **Stdout:** `{}`. Proto-поле `overwriteResult` в command-хуках `1.5.17`
+  игнорируется — используйте `PostToolUse` для аудита, метрик и внешних эффектов,
+  а не для правки вывода инструмента.
 
-```json
-{ "injectSteps": [], "terminationBehavior": "force_continue" }
-```
+### `PreInvocation` и `PostInvocation`
 
-`force_continue` возвращает в цикл; `terminate` останавливает; `""`/нет =
-поведение по умолчанию.
+- **Дополнительные поля stdin:** `invocationNum`, `initialNumSteps`.
+- **Stdout:** `{"injectSteps": [...], "terminationBehavior": "" | "terminate" | "force_continue"}`
+  (`force_continue` допустим только в `PostInvocation`; `terminate` работает в обоих).
+- **Валидные элементы `injectSteps`:**
+  - `{"systemMessage": {"systemMessage": "...", "metadata": {"user_markdown": "..."}}}`
+    — канонический вложенный объект (`metadata.user_markdown` рендерится
+    пользователю, не попадая в контекст модели).
+  - `{"userMessage": "..."}` — инжектит синтетическое сообщение пользователя.
+  - `{"errorMessage": {"userMessage": "..."}}` — показывает ошибку пользователю
+    (в паре с `"terminationBehavior": "terminate"`).
 
-### Stop — блокировка преждевременных остановок
+### `Stop` и баг `continuationActive`
 
-Вход: `executionNum`, `terminationReason` (`model_stop` |
-`max_steps_exceeded` | `error`), `error`, `fullyIdle`.
+- **Дополнительные поля stdin:** `executionNum`, `terminationReason`, `error`,
+  `fullyIdle`, `continuationActive`.
+- **Официальные значения `terminationReason`:** `NO_TOOL_CALL` (штатная
+  остановка модели), `MAX_INVOCATIONS`, `MAX_FORCED_INVOCATIONS`,
+  `MAX_TOKEN_BUDGET_EXCEEDED`, `ERROR`, `USER_CANCELED`, `TERMINAL_STEP_TYPE`,
+  `TERMINAL_CUSTOM_HOOK`, `INJECTED_RESPONSE`.
+- **Stdout:** `{"decision": ""}` (разрешить остановку) или
+  `{"decision": "continue", "reason": "Что нужно завершить перед остановкой"}`.
 
-```json
-{ "decision": "continue", "reason": "тесты ещё бегут" }
-```
+> **Критичный баг `agy 1.5.17`:** Живые пробы показали, что `continuationActive`
+> остаётся `false` даже на `executionNum: 1` и `executionNum: 2` после ответа
+> `{"decision": "continue"}`. `Stop`-хук, проверяющий только
+> `input.continuationActive`, может уйти в цикл. **Всегда проверяйте оба поля:**
+> `isStopContinuation(input)` (`Boolean(input?.continuationActive || input?.executionNum > 0)`).
 
-Любое decision, кроме `"continue"`, разрешает остановку; `reason`
-инжектится системным сообщением при продолжении.
+## Fail-open обработчики на `io.mjs`
 
-## Закон fail-open
-
-Хук, бросивший исключение или вышедший с ненулевым кодом, деградирует или
-ломает сессию пользователя. Прогоняйте каждый скрипт через обёртку, которая
-ловит **всё** и эмитит безопасный ответ с exit 0 — скаффолдный
-`scripts/lib/io.mjs`:
+Упавший хук (ненулевой exit code, синтаксическая ошибка, необработанное
+исключение или обрезанный stdout) ломает сессию пользователя. Каждый
+сгенерированный плагин поставляет zero-dep модуль `scripts/lib/io.mjs`:
 
 ```js
-import { pathToFileURL } from "node:url";
-import { runHook, commandLineOf, denyResponse } from "./lib/io.mjs";
+#!/usr/bin/env node
+import {
+  ALLOW,
+  commandLineOf,
+  denyResponse,
+  runHook,
+} from "./lib/io.mjs";
 
-export function checkCommand(cmd) {
-  return /\brm\s+-rf\s+\//.test(cmd) ? denyResponse("blocked") : { decision: "allow", allow_tool: true };
-}
+const BLOCKED = [/\brm\s+-rf\s+\/(?:\s|$)/];
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href)
-  runHook((input) => checkCommand(commandLineOf(input)));
+runHook((input) => {
+  const cmd = commandLineOf(input);
+  for (const re of BLOCKED) {
+    if (re.test(cmd)) {
+      return denyResponse("Refusing destructive root delete.");
+    }
+  }
+  return ALLOW;
+}, ALLOW);
 ```
 
-Извлекайте вход через адаптеры (`commandLineOf`, `promptTextOf`, `cwdOf`,
-`editedFileOf`) — имена полей дрейфуют между preview-сборками. В stdout идёт
-только одна строка JSON-ответа.
+`runHook(handler, fallback)`:
+1. Читает JSON из stdin с защитным таймаутом 3 секунды, чтобы незакрытый pipe не
+   подвесил сессию.
+2. Перехватывает синхронные и асинхронные ошибки и возвращает `fallback`
+   (`ALLOW`, `SILENT` или `STOP_ALLOW`).
+3. Сбрасывает буфер `stdout` перед `process.exit(0)`, чтобы длинный JSON не
+   обрезался.
 
-## Подводные камни
+Экспорты `io.mjs`:
+- **PreToolUse:** `ALLOW`, `denyResponse`, `askResponse`, `forceAskResponse`,
+  `overwriteResponse`
+- **Session / Invocation:** `SILENT`, `systemMessageResponse`, `injectResponse`,
+  `errorTerminateResponse`, `forceContinueResponse`
+- **Stop:** `STOP_ALLOW`, `continueStopResponse`, `isStopContinuation`
+- **Адаптеры ввода:** `hookEventNameOf`, `toolCallIdOf`, `commandLineOf`,
+  `promptTextOf`, `transcriptPathOf`, `cwdOf`, `editedFileOf`
 
-- Имя события на верхнем уровне → хук не загрузится (линт даёт FAIL).
-- `hooks/hooks.json` вместо корня → невидим для `agy plugin validate`
-  (линт предупреждает).
-- `${PLUGIN_ROOT}` в команде → раскрывается в **пустую строку** на CLI
-  1.1.1 («Cannot find module '/scripts/…'», наблюдение 2026-07-12; на
-  ранних сборках работал). Используйте пути относительно hooks.json:
-  `node ./scripts/x.mjs` (cwd = каталог hooks.json). Линтер предупреждает.
-- Отсутствующий timeout → 30 секунд тихой блокировки на зависшем скрипте.
-- Логи в stdout → портят JSON-ответ; используйте stderr.
+## Подтверждённые runtime-ловушки
 
-## Чеклист
+Каждая из ловушек ниже проходит `agy plugin validate --strict` (или тихо
+ломается в рантайме) и явно отлавливается `lint.mjs`:
 
-- [ ] hooks.json в корне плагина, только именованные хуки
-- [ ] у каждого обработчика: command + явный timeout 10–15с
-- [ ] каждый скрипт: обёрнут в runHook(), exit 0 на junk/пустом/битом stdin
-- [ ] e2e-тест на каждый хук (см. [гайд по тестированию](testing.ru.md))
+1. **Хуки `type: "prompt"` валят каждый подходящий вызов инструмента.** Они
+   проходят `agy plugin validate --strict`, но `agy 1.5.17` падает в рантайме с
+   `prompt hooks are not currently supported`. Всегда используйте `"type": "command"`.
+2. **`injectSteps: [{"toolCall": ...}]` роняет ход с кодом выхода 3**
+   (`unknown injected step type: <nil>`). Никогда не отправляйте `toolCall`-шаги.
+3. **`ephemeralMessage` устарел** — используйте вложенный объект
+   `{"systemMessage": {"systemMessage": "..."}}` через `systemMessageResponse()`.
+4. **Не проверяйте устаревшую строчную причину остановки** — нормальное
+   завершение модели приходит как `terminationReason === "NO_TOOL_CALL"`.
+5. **Не кладите навязчивые глобальные `Stop`-хуки** в утилитарные плагины.
+   Глобально установленный хук срабатывает в *каждом* проекте пользователя.
+   Держите хуки узкими, опциональными или локальными в `.agents/hooks.json`.
 
-*См. также: [реестр ловушек](../internals.md) · [Тестирование](testing.ru.md)*
+Далее: [Тестирование](testing.ru.md) · [Субагенты](agents.ru.md) · [Внутренности](../internals.md)

@@ -1,87 +1,135 @@
-# MCP servers: mcp_config.json, transports, the disabled:true convention
+# MCP servers
 
-*English | [Русский](mcp.ru.md)*
+English | [Русский](mcp.ru.md)
 
-MCP (Model Context Protocol) servers expose external tools to the agent. A
-plugin can bundle its own servers; they activate with the plugin, and their
-tools are namespaced on conflict.
+A plugin can ship one or more Model Context Protocol (MCP) servers via a root
+`mcp_config.json` file. Antigravity automatically namespaces every server as
+`<plugin>_<server>` to prevent collisions across plugins.
 
-## Configuration
+## Layout and supported transports
 
-Locations: global `~/.gemini/config/mcp_config.json`, workspace
-`<project>/.agents/mcp_config.json`, or per-plugin
-`plugins/<name>/mcp_config.json`.
+Place MCP configuration at `<plugin>/mcp_config.json`. Unlike `plugin.json` and
+`hooks.json`, **`mcp_config.json` accepts JSONC** (comments and trailing
+commas).
 
-```json
+Antigravity `1.5.17+` supports **two** MCP transports inside `mcp_config.json` —
+do **not** set `"type"` or `"httpUrl"` in native plugin configs:
+
+### Stdio servers
+
+Spawns a local process communicating over stdin/stdout. Prefer `"command":
+"node"` (with bundled JS) or `"npx"` for cross-platform portability; if a server
+requires a non-Node runtime (`python`, `uvx`, `docker`), ship it with
+`"disabled": true` and document the prerequisite.
+
+```jsonc
 {
   "mcpServers": {
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
-    },
-    "my-local-tool": {
-      "command": "my-tool",
-      "args": ["mcp"],
-      "env": { "MY_TOOL_MODE": "readonly" },
-      "disabled": true
-    },
-    "remote-service": {
-      "serverUrl": "https://mcp.mycompany.com/sse"
+    "local-tools": {
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/scripts/mcp-server.mjs"],
+      "env": {
+        "STATE_DIR": "${PLUGIN_DATA}",
+        "API_TOKEN": "${API_TOKEN}"
+      },
+      "variables": [
+        {
+          "name": "API_TOKEN",
+          "title": "API Token",
+          "description": "Personal access token for the service."
+        }
+      ]
     }
   }
 }
 ```
 
-Two transports:
+### Streamable HTTP (never legacy `/sse`)
 
-- **stdio** — `command` (executable), `args`, `env`. The server is spawned
-  locally and speaks over stdin/stdout.
-- **SSE** — `serverUrl` for remote servers over HTTP Server-Sent Events.
+Connects to a remote MCP endpoint over Streamable HTTP using `url` (or legacy
+alias `serverUrl`):
 
-## The `disabled: true` convention
+```jsonc
+{
+  "mcpServers": {
+    "remote-api": {
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${API_TOKEN}"
+      },
+      "variables": [
+        {
+          "name": "API_TOKEN",
+          "title": "API Token"
+        }
+      ]
+    }
+  }
+}
+```
 
-If `command` is anything but a universally available launcher (`node`,
-`npx`), a user without that binary gets broken sessions. So:
+> **Legacy `/sse` trap:** Antigravity does **not** support legacy HTTP+SSE MCP
+> endpoints. `agy plugin validate --strict` does not warn on `/sse` URLs, so
+> `lint.mjs` flags them automatically. If an upstream server only speaks legacy
+> SSE, bridge it locally through `mcp-remote` over Stdio instead.
 
-- ship such entries with `"disabled": true`;
-- flip a `"disabled": true` entry to enabled only once the binary is confirmed
-  present — do it in the tool or setup step that provisions the server, not by
-  shipping it enabled (the reference antigravity-kit gates its optional
-  `headroom` CLI this way).
+## Exact variable expansion matrix
 
-This kit's lint fails a payload whose non-builtin command lacks
-`disabled: true`. Note: an empty `"mcpServers": {}` is reported by
-`agy plugin validate` as `skipped (not found)` — that's fine.
+Antigravity applies strict, asymmetric substitution rules — violating them
+causes silent literal `${...}` strings at runtime:
 
-## Non-destructive merge & prune (config contract)
+| Placeholder | Expands in | Does **NOT** expand in | Notes |
+|---|---|---|---|
+| `${PLUGIN_ROOT}`, `${PLUGIN_DATA}` | `args`, `env` values, `cwd` | `command`, `url`, `headers`, `oauth` | Never set `PLUGIN_ROOT` as an `env` key — Antigravity injects it automatically. |
+| `${VAR}` declared in per-server `variables[]` | `command`, `args`, `env`, `url`, `headers`, `oauth` | `cwd` | `variables[]` belongs inside each server object, never at the root of `mcp_config.json` or `plugin.json`. Plugins declaring `variables` install **disabled** until the user supplies values. |
+| `${env:NAME}` | *(nowhere)* | everywhere | OS environment variables are **not** expanded by Antigravity. |
 
-A native plugin ships its servers in the payload's `mcp_config.json`; the
-scaffold has no installer — `agy plugin install` resolves the config and
-Antigravity manages it. If you write any tool that merges servers into a
-user's `mcp_config.json`, hold to the same contract:
+Never hardcode real tokens (`ghp_`, `github_pat_`, `sk-`, `AIza`, `xoxb-`,
+`Bearer ...`) in `env` or `headers` — `lint.mjs` warns on literal secrets.
 
-- **never overwrite** an entry the user already has — if the name exists,
-  skip it;
-- when removing, **prune only entries byte-identical** to what you added;
-  anything the user edited stays.
+## Tool loading, `eager`, and timeouts
 
-The scaffolded tests assert this contract for any such tool (a user-defined
-server survives a merge + prune round-trip).
+- **Lazy by default:** plugin MCP tools load on demand via `call_mcp_tool` to
+  protect context budgets. Inline tool responses are capped at **10 KB** before
+  spilling to a file.
+- **Per-tool tuning:** set `"tools": { "<tool>": { "eager": true, "background": "off" } }`
+  only for high-frequency tools that must appear directly in the top-level tool
+  list. Note that `background` MUST be a string (`"off"` or `"always"`) —
+  passing boolean `false` causes Go JSON unmarshaling to skip the entire server.
+- **Filtering:** use `"enabledTools": [...]` or `"disabledTools": [...]` to
+  restrict a large upstream server to the exact subset your plugin needs.
+- **Timeouts:** `"timeoutSeconds"` configures per-call timeout (`-1` disables
+  the timeout).
 
-## Pitfalls
+## MCP Apps (`SEP-1865`) and OAuth 2.1
 
-- A required binary shipped enabled → sessions break on machines without it.
-- Overwriting the user's tuned server definition on install → rage.
-- Secrets in `env` committed to the repo — use placeholders and document.
-- Forgetting that plugin servers only run while the plugin is enabled.
+- **MCP Apps (`SEP-1865`):** tools can attach `_meta.ui.resourceUri` pointing to
+  a `ui://` HTML resource rendered in `com.google.antigravity/ui` (`aux_pane`,
+  `global`, or `file`). Because `agy` CLI renders no iframes and ignores
+  `_meta.ui.visibility`, **always return complete plain-text `content`** as a
+  fallback alongside any UI resource.
+- **OAuth 2.1 / CIMD:** Antigravity supports OAuth 2.1 + PKCE `S256` with
+  Client ID Metadata Documents (`https://antigravity.google/oauth/mcp-client.json`)
+  and dynamic client registration. Allowlist
+  `https://antigravity.google/oauth-callback` (local CLI/App) and
+  `https://antigravity.google.com/oauth/callback` (remote Marketplace) in your
+  OAuth provider and test auth flows on both CLI and App.
 
-## Checklist
+## Alternative pattern: bundled CLI + `auth.json` + skill
 
-- [ ] every non-`node`/`npx` command ships `disabled: true`
-- [ ] the entry is enabled only once the binary is confirmed present
-- [ ] merge skips existing user entries; prune removes only exact matches
-- [ ] no secrets in committed `env`
-- [ ] `lint` passes the MCP checks
+Not every integration needs a long-running MCP process. Google's own Workspace
+plugins (`gcalendar`, `gdocs`, `gdrive`, `gsheets`, `gslides`) ship:
 
-*See also: [Plugin manifest & layouts](plugin-manifest.md) ·
-[Testing](testing.md)*
+1. A self-contained CLI binary or Node script in `scripts/` (or `bin/`).
+2. A declarative `auth.json` (OAuth2 or API key flow managed natively by
+   Antigravity).
+3. A lean `SKILL.md` teaching the agent the exact CLI commands and flags.
+
+Choose **bundled CLI + skill** when operations are stateless request/response
+commands with small flags (scaffold directly with
+`meta-kit.mjs create my-plugin --minimal --with-cli`, and validate `auth.json`
+with `lint.mjs --strict`, since `agy plugin validate` currently skips
+`auth.json`); choose **MCP** when you need persistent connections, structured
+JSON tool schemas, resources, or MCP Apps UI.
+
+Next: [Plugin manifest & layouts](plugin-manifest.md) · [Skills](skills.md) · [Internals](../internals.md)

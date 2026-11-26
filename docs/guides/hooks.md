@@ -1,24 +1,31 @@
-# Hooks: lifecycle events, wire contracts, and the fail-open law
+# Lifecycle hooks
 
-*English | [Русский](hooks.ru.md)*
+English | [Русский](hooks.ru.md)
 
-Hooks run external commands at fixed points of the agent loop: gate tool
-calls, inject context, keep the session alive. Contracts below are from the
-official in-CLI docs (2026-07, CLI 1.0.16; unchanged on 1.1.1),
-cross-checked against the binary.
+Lifecycle hooks let a plugin inspect, guard, rewrite, or annotate agent turns at
+six deterministic points in the Antigravity execution loop. Every wire contract
+and trap below was verified live on `agy 1.5.17`.
 
-## hooks.json — file shape
+## Layout and `hooks.json` schema
 
-Location: the **plugin root** (`plugins/<name>/hooks.json`) — the official
-spot and the only one `agy plugin validate` sees. Top-level keys are **hook
-names** (any string; the plugin name is a good collision-avoiding
-convention). Never put an event name at the top level — that's the Claude
-Code `settings.json` shape and it does not load here.
+- Place hooks at `<plugin>/hooks.json` — **root strict JSON** (comments and
+  trailing commas hard-error; `hooks/hooks.json` is never loaded in native
+  plugins).
+- Top-level keys are **named hook groups** (putting event names directly at the
+  top level hard-errors). Each group may optionally set `"enabled": false`.
+- Every handler uses `"type": "command"`, `"command"` (executed via `sh -c`
+  with working directory set to the plugin root), and `"timeout"` (integer
+  seconds, default `30`; since `1.5.14`, the entire process group is killed on
+  timeout).
+- Invoke bundled scripts via relative paths such as `node ./scripts/guard.mjs`.
+  Do **not** write `${PLUGIN_ROOT}` or `$PLUGIN_ROOT` in `command` strings —
+  `agy plugin validate --strict` rejects it (the runtime already sets `cwd` to
+  the plugin root and exports `PLUGIN_ROOT` and, for installed plugins,
+  `PLUGIN_DATA` in the environment).
 
 ```json
 {
-  "my-plugin": {
-    "enabled": true,
+  "my-plugin-guards": {
     "PreToolUse": [
       {
         "matcher": "run_command",
@@ -26,152 +33,173 @@ Code `settings.json` shape and it does not load here.
           {
             "type": "command",
             "command": "node ./scripts/example-guard.mjs",
-            "timeout": 10,
-            "statusMessage": "my-plugin: guard"
+            "timeout": 10
           }
         ]
       }
-    ],
-    "Stop": [
-      { "type": "command", "command": "node ./scripts/keep-going.mjs", "timeout": 10 }
     ]
   }
 }
 ```
 
-- Named hooks from all configs/plugins **merge**; handlers for the same
-  event run sequentially.
-- `"enabled": false` disables a named hook temporarily.
-- Handler fields: `type` (optional; only `"command"` exists), `command`
-  (required; `sh -c` on Unix, `cmd /c` on Windows; `~` expands; **cwd = the
-  hooks.json directory**), `timeout` (seconds, **default 30** — set 10–15
-  explicitly; hooks block the loop synchronously). `statusMessage` is an
-  IDE nicety, not an official field.
+## The six native events
 
-## The six events
-
-| Event | Fires | Structure |
+| Event | Schema shape | When it fires |
 |---|---|---|
-| `SessionStart` | at conversation start | flat list |
-| `PreToolUse` | before a tool step | matcher group |
-| `PostToolUse` | after a tool step | matcher group |
-| `PreInvocation` | before the model is called | flat list |
-| `PostInvocation` | after tool calls finish | flat list |
-| `Stop` | when the loop terminates | flat list |
+| `SessionStart` | flat `[handler, ...]` | Once when a new session initializes. |
+| `PreToolUse` | grouped `[{"matcher": "<regex>", "hooks": [...]}]` | Before a matching tool runs; can allow, deny, ask, or rewrite args. |
+| `PostToolUse` | grouped `[{"matcher": "<regex>", "hooks": [...]}]` | After a matching tool finishes (for logging, telemetry, side effects). |
+| `PreInvocation` | flat `[handler, ...]` | Before each model invocation; can inject steps or terminate the turn. |
+| `PostInvocation` | flat `[handler, ...]` | After each model invocation; can inject steps, terminate, or `force_continue`. |
+| `Stop` | flat `[handler, ...]` | When the agent is about to stop; can allow stop or force one continuation. |
 
-`SessionStart` is the odd one out: absent from the official docs (they list
-five), refuted against the 1.0.16 binary, then confirmed live on 1.1.1
-(probe, 2026-07-12) — it fires once per conversation start.
+Matcher regexes on `PreToolUse` / `PostToolUse` must match native Antigravity
+tool names (such as `run_command`, `write_file`, `edit_file`, `read_file`).
+Putting flat handlers on tool events silently fails to fire; putting matcher
+groups on flat events hard-errors.
 
-Matchers (grouped events only): `""`/`"*"` = all tools; otherwise regex
-(`run_command`, `run_command|view_file`, `browser_.*`). Tool names are the
-lowercased `CORTEX_STEP_TYPE_*` suffixes.
+## Common stdin fields
 
-## Wire contracts
+Live probes confirmed that **all 6 events** (including `SessionStart`) receive
+the full camelCase protojson common envelope on `stdin`:
 
-JSON on stdin → JSON on stdout. All keys camelCase. Common input fields:
-`conversationId`, `workspacePaths[]`, `transcriptPath`,
-`artifactDirectoryPath`, `modelName` (transcript dir segment differs per
-surface: `antigravity-cli/`, `antigravity/`, `antigravity-ide/`).
+- `conversationId` — unique conversation ID
+- `workspacePaths` — array of active workspace directories
+- `transcriptPath` — path to the conversation transcript file
+- `artifactDirectoryPath` — path to the brain/artifact directory
+- `modelName` — active model ID
+- `lastUserInput` — most recent user message
+- `hookEventName` — event name string (`SessionStart`, `PreToolUse`, etc.)
+- `cwd` — the **agent's** working directory (distinct from the hook process's
+  `process.cwd()`, which is the plugin root)
 
-### SessionStart — conversation start (undocumented; probed 2026-07-12)
+## Per-event contracts and responses
 
-Input: the common fields only — no event-specific additions. Respond `{}`
-(the only verified response; a result proto exists, so richer responses may
-work — probe before relying on them).
+### `SessionStart`
 
-### PreToolUse — gate tool calls
+- **Extra stdin fields:** none beyond the 8 common fields.
+- **Stdout:** `{}` (no-op) or `{"injectSteps": [...]}` (typically a
+  `systemMessage` step for session bootstrap context).
 
-Input adds `toolCall.name`, `toolCall.args` (e.g. `CommandLine`), `stepIdx`.
+### `PreToolUse` (including `overwrite`)
 
-```json
-{ "decision": "deny", "reason": "rm -rf / is not happening", "permissionOverrides": [] }
-```
-
-`decision`: `allow` | `deny` | `ask` (prompt the user; respects the
-"Always Allow" cache) | `force_ask` (ignore the cache). Legacy dialect
-`{"allow_tool": bool, "deny_reason": "…"}` still parses on current builds
-(re-checked on 1.1.1) — the scaffolded `denyResponse()` emits **both**
-dialects until the legacy one dies.
-
-### PostToolUse — observe results
-
-Input carries `error` when the tool failed. Output: **`{}`**. Don't try to
-inject here — never verified, and the official contract expects empty.
-
-### PreInvocation — inject context
+- **Extra stdin fields:** `toolCall: { id, name, args }`, `stepIdx`.
+- **Stdout:**
+  - Allow: `{"decision": "allow"}`
+  - Deny: `{"decision": "deny", "reason": "Explain why so the agent adapts"}`
+  - Prompt user: `{"decision": "ask", "reason": "...", "permissionOverrides"?: [...]}`
+    or `{"decision": "force_ask", ...}`
+  - Rewrite tool arguments before execution (**verified live on `1.5.17`**):
 
 ```json
-{ "injectSteps": [
-    { "userMessage": "visible injected message" },
-    { "ephemeralMessage": "transient system message" },
-    { "toolCall": { "name": "…", "args": {} } } ] }
+{
+  "decision": "allow",
+  "overwrite": { "CommandLine": "npm test -- --reporter=spec" }
+}
 ```
 
-`{}` = silent no-op.
+`overwrite` performs a shallow top-level merge into `toolCall.args` and prefixes
+the tool result with a notice listing changed keys.
 
-### PostInvocation — keep-working mechanism
+### `PostToolUse`
 
-Input mirrors PreInvocation. Output:
+- **Extra stdin fields:** `toolCall`, `stepIdx`, `error`.
+- **Stdout:** `{}`. Note that proto `overwriteResult` is currently ignored in
+  `1.5.17` command hooks — use `PostToolUse` for auditing, metrics, or external
+  side effects, not mutating tool output.
 
-```json
-{ "injectSteps": [], "terminationBehavior": "force_continue" }
-```
+### `PreInvocation` and `PostInvocation`
 
-`force_continue` re-enters the loop; `terminate` stops it; `""`/omitted =
-default.
+- **Extra stdin fields:** `invocationNum`, `initialNumSteps`.
+- **Stdout:** `{"injectSteps": [...], "terminationBehavior": "" | "terminate" | "force_continue"}`
+  (`force_continue` is valid on `PostInvocation` only; `terminate` works on both).
+- **Valid `injectSteps` items:**
+  - `{"systemMessage": {"systemMessage": "...", "metadata": {"user_markdown": "..."}}}`
+    — canonical nested object (`metadata.user_markdown` renders for the user
+    without going to the model).
+  - `{"userMessage": "..."}` — injects a synthetic user message.
+  - `{"errorMessage": {"userMessage": "..."}}` — displays an error to the user
+    (pair with `"terminationBehavior": "terminate"`).
 
-### Stop — block premature stops
+### `Stop` and the `continuationActive` bug
 
-Input: `executionNum`, `terminationReason` (`model_stop` |
-`max_steps_exceeded` | `error`), `error`, `fullyIdle`.
+- **Extra stdin fields:** `executionNum`, `terminationReason`, `error`,
+  `fullyIdle`, `continuationActive`.
+- **Official `terminationReason` values:** `NO_TOOL_CALL` (normal model stop),
+  `MAX_INVOCATIONS`, `MAX_FORCED_INVOCATIONS`, `MAX_TOKEN_BUDGET_EXCEEDED`,
+  `ERROR`, `USER_CANCELED`, `TERMINAL_STEP_TYPE`, `TERMINAL_CUSTOM_HOOK`,
+  `INJECTED_RESPONSE`.
+- **Stdout:** `{"decision": ""}` (allow stop) or
+  `{"decision": "continue", "reason": "What must be finished before stopping"}`.
 
-```json
-{ "decision": "continue", "reason": "tests are still running" }
-```
+> **Critical `agy 1.5.17` bug:** Live probes observed `continuationActive`
+> remaining `false` even on `executionNum: 1` and `executionNum: 2` after a
+> previous `{"decision": "continue"}`. A `Stop` hook that checks only
+> `input.continuationActive` can loop repeatedly. **Always guard with both:**
+> `isStopContinuation(input)` (`Boolean(input?.continuationActive || input?.executionNum > 0)`).
 
-Any decision other than `"continue"` allows the stop; `reason` is injected
-as a system message when continuing.
+## Writing fail-open handlers with `io.mjs`
 
-## The fail-open law
-
-A throwing or non-zero hook degrades or breaks the user's session. Route
-every script through a wrapper that catches **everything** and emits the
-safe response with exit 0 — the scaffolded `scripts/lib/io.mjs`:
+A crashed hook (non-zero exit, syntax error, unhandled rejection, or truncated
+stdout) breaks the user's session. Every scaffolded plugin ships a zero-dep
+fail-open helper at `scripts/lib/io.mjs`:
 
 ```js
-import { pathToFileURL } from "node:url";
-import { runHook, commandLineOf, denyResponse } from "./lib/io.mjs";
+#!/usr/bin/env node
+import {
+  ALLOW,
+  commandLineOf,
+  denyResponse,
+  runHook,
+} from "./lib/io.mjs";
 
-export function checkCommand(cmd) {
-  return /\brm\s+-rf\s+\//.test(cmd) ? denyResponse("blocked") : { decision: "allow", allow_tool: true };
-}
+const BLOCKED = [/\brm\s+-rf\s+\/(?:\s|$)/];
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href)
-  runHook((input) => checkCommand(commandLineOf(input)));
+runHook((input) => {
+  const cmd = commandLineOf(input);
+  for (const re of BLOCKED) {
+    if (re.test(cmd)) {
+      return denyResponse("Refusing destructive root delete.");
+    }
+  }
+  return ALLOW;
+}, ALLOW);
 ```
 
-Extract inputs via the adapter helpers (`commandLineOf`, `promptTextOf`,
-`cwdOf`, `editedFileOf`) — field names drift between preview builds. Only
-the single JSON response line goes to stdout.
+`runHook(handler, fallback)`:
+1. Reads stdin JSON with a 3-second safety timeout so an unclosed pipe never
+   hangs the session.
+2. Catches any synchronous or async error and emits `fallback` (`ALLOW`,
+   `SILENT`, or `STOP_ALLOW`).
+3. Flushes `stdout` before calling `process.exit(0)` so large JSON payloads are
+   never truncated.
 
-## Pitfalls
+Available `io.mjs` exports:
+- **PreToolUse:** `ALLOW`, `denyResponse`, `askResponse`, `forceAskResponse`,
+  `overwriteResponse`
+- **Session / Invocation:** `SILENT`, `systemMessageResponse`, `injectResponse`,
+  `errorTerminateResponse`, `forceContinueResponse`
+- **Stop:** `STOP_ALLOW`, `continueStopResponse`, `isStopContinuation`
+- **Input adapters:** `hookEventNameOf`, `toolCallIdOf`, `commandLineOf`,
+  `promptTextOf`, `transcriptPathOf`, `cwdOf`, `editedFileOf`
 
-- Event name as a top-level key → hook never loads (lint FAILs it).
-- `hooks/hooks.json` instead of the root → invisible to `agy plugin
-  validate` (lint warns).
-- `${PLUGIN_ROOT}` in a command → expands to an **empty string** on CLI
-  1.1.1 ("Cannot find module '/scripts/…'", observed 2026-07-12; it worked
-  on earlier builds). Use hooks.json-relative paths: `node ./scripts/x.mjs`
-  (cwd = the hooks.json dir). Lint warns on it.
-- Missing timeout → 30s of silent blocking on a hung script.
-- Emitting logs to stdout → corrupts the JSON response; use stderr.
+## Verified runtime traps
 
-## Checklist
+Every trap below passes `agy plugin validate --strict` (or fails silently at
+runtime) and is explicitly caught by `lint.mjs`:
 
-- [ ] hooks.json at the plugin root, named hooks only
-- [ ] every handler: command + explicit 10–15s timeout
-- [ ] every script: runHook()-wrapped, exits 0 on junk/empty/malformed stdin
-- [ ] e2e test per hook (see the [testing guide](testing.md))
+1. **`type: "prompt"` hooks crash every matching tool call.** They pass
+   `agy plugin validate --strict`, yet `agy 1.5.17` fails at runtime with
+   `prompt hooks are not currently supported`. Always use `"type": "command"`.
+2. **`injectSteps: [{"toolCall": ...}]` crashes the turn with exit code 3**
+   (`unknown injected step type: <nil>`). Never emit `toolCall` steps.
+3. **`ephemeralMessage` is deprecated** — use the nested
+   `{"systemMessage": {"systemMessage": "..."}}` shape via
+   `systemMessageResponse()`.
+4. **Never check the obsolete lowercase stop string** — normal model completion
+   is `terminationReason === "NO_TOOL_CALL"`.
+5. **Never ship global intrusive `Stop` hooks** in a utility plugin. Every
+   globally installed hook fires in *every* workspace of every user. Keep hooks
+   opt-in, tightly scoped, or workspace-local (`.agents/hooks.json`).
 
-*See also: [trap registry](../internals.md) · [Testing](testing.md)*
+Next: [Testing](testing.md) · [Subagents](agents.md) · [Internals](../internals.md)

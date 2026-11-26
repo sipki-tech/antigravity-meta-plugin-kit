@@ -1,0 +1,7 @@
+{
+  "command": "node",
+  "args": ["worker.mjs"],
+  "restart_policy": "on-failure",
+  "display_name": "{{displayName}} Worker",
+  "description": "TODO: describe what the {{name}} background sidecar manages."
+}

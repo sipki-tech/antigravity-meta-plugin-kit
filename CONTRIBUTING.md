@@ -11,48 +11,48 @@ npm test    # node --test; no install step, no build step
 The dev tools live inside the plugin payload. Run them from a checkout with:
 
 ```bash
-node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs .
-node plugins/antigravity-meta-plugin-kit/scripts/create.mjs my-plugin --dry-run
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs lint --strict .
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs create my-plugin --dry-run
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs probe --fast
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs doctor --workspace .
+agy plugin validate --strict --json plugins/antigravity-meta-plugin-kit
 ```
-
-For the full dogfood suite, check out the reference repo as a sibling
-(`../antigravity-kit`) or set `AGY_KIT_PAYLOAD` to its payload dir.
 
 ## Ground rules
 
-- **Zero runtime dependencies.** ESM `.mjs`, Node ≥18 built-ins only. PRs
-  adding dependencies need extraordinary justification.
-- **Fail-open applies to template code.** Anything `create` puts into a hook
-  script must resolve to allow/silent with exit 0 on any internal error —
-  scaffolded plugins inherit our bugs.
-- **Lint rules are calibrated, not idealized.** Every rule must pass on the
-  reference payload (antigravity-kit); the dogfood CI job is a hard gate. If
-  a new rule fails there, the rule is wrong until proven otherwise — never
-  weaken a check silently to make dogfood pass; surface the finding instead.
+- **Antigravity-only, zero runtime dependencies.** ESM `.mjs`, Node >= 20
+  built-ins only. Do not add cross-vendor compatibility shims or npm runtime
+  dependencies.
+- **Fail-open applies to all hook code.** Anything `create` puts into a hook
+  script must resolve to allow/silent with exit 0 on any internal error.
 - **Every FS mutation goes through the journal**
   (`plugins/antigravity-meta-plugin-kit/scripts/lib/fsutil.mjs`), so
   `--dry-run` stays exact and free.
-- **Docs are bilingual.** Any README change lands in both `README.md` and
-  `README.ru.md` in the same commit, section for section. Code, comments and
-  all other artifacts are English.
+- **Docs are bilingual (EN + RU).** Any `README.md` or `docs/guides/*.md`
+  change lands in both English and Russian in the same commit with identical
+  heading structure (enforced by `test/docs-parity.test.mjs`). Inside this
+  checkout, `/meta-mirror` (repo-local `.agents/skills/meta-mirror/`) invokes
+  `meta-doc-mirror` to keep mirrors synced.
 - **Tests accompany behavior changes.** Logic lives in importable `.mjs`
-  functions with unit tests; wire contracts get e2e `spawnSync` tests.
-- **Preview observations get dated.** If Antigravity behaves differently
-  from `docs/internals.md`, update the entry with the new observation date.
+  functions with unit tests; wire contracts get e2e `spawnSync` tests; payload
+  and scaffold profiles stay 0-finding clean under `agy plugin validate --strict --json`.
+- **Empirical observations get dated.** When Antigravity updates, run
+  `scripts/probe.mjs --fast` (and `--live`), update `docs/internals.md` with
+  new observation dates, and recalibrate `scripts/lib/lint.mjs`.
 
 ## Layout
 
 | Piece | Path |
 |---|---|
-| `create` / `lint` entrypoints | `plugins/antigravity-meta-plugin-kit/scripts/{create,lint}.mjs` |
-| Scaffolder / linter / helpers | `plugins/antigravity-meta-plugin-kit/scripts/lib/` |
-| The kit's plugin payload (skills, subagents, workflows) | `plugins/antigravity-meta-plugin-kit/` |
-| Scaffold templates | `plugins/antigravity-meta-plugin-kit/scripts/templates/plugin/` (note `_gitignore`, `_package.json` renamed at generation) |
-| Trap registry / guides | `docs/internals.md`, `docs/guides/` (bilingual) |
-| Tests | `test/` |
+| Unified CLI & subcommand entrypoints | `plugins/antigravity-meta-plugin-kit/scripts/{meta-kit,create,lint,probe,doctor}.mjs` |
+| Parser, modular linter (`lint/*.mjs`), scaffolder, doctor | `plugins/antigravity-meta-plugin-kit/scripts/lib/` |
+| Canonical hook SDK (`io.mjs`) & scaffold templates | `plugins/antigravity-meta-plugin-kit/scripts/templates/plugin/` |
+| Public plugin payload (11 skills, 3 agents, 1 rule, logo) | `plugins/antigravity-meta-plugin-kit/` |
+| Repo-local doc mirror agent & `/meta-mirror` skill | `.agents/{agents,skills}/` |
+| Trap registry & bilingual guides | `docs/internals.md`, `docs/guides/` |
+| Test suites | `test/` |
 
 ## Commits
 
 Conventional-commit style: `feat:`, `fix:`, `docs:`, `chore:`, `test:`.
-Update `CHANGELOG.md` for user-visible changes; park out-of-scope ideas in
-its Backlog subsection.
+Update `CHANGELOG.md` for user-visible changes.

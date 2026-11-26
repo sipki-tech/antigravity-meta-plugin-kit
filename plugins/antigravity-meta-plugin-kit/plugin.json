@@ -1,10 +1,14 @@
 {
   "name": "antigravity-meta-plugin-kit",
-  "version": "0.5.0",
-  "description": "Author Antigravity plugins with guardrails: six meta skills and four specialist subagents that know the loader's traps.",
+  "displayName": "Meta Plugin Kit",
+  "version": "0.6.0",
+  "description": "Production toolkit for authoring, linting, testing, and auditing Google Antigravity plugins — encodes agy 1.5.17+ contracts and runtime traps.",
+  "logo": "assets/logo.svg",
   "author": {
-    "name": "sipki-tech"
+    "name": "sipki-tech",
+    "url": "https://github.com/sipki-tech"
   },
+  "homepage": "https://github.com/sipki-tech/antigravity-meta-plugin-kit",
   "repository": "https://github.com/sipki-tech/antigravity-meta-plugin-kit",
   "license": "MIT",
   "keywords": [
@@ -14,29 +18,13 @@
     "scaffold",
     "lint",
     "skills",
-    "subagents"
+    "subagents",
+    "hooks"
   ],
-  "skills": "./skills",
-  "rules": "./rules",
-  "hooks": "./hooks.json",
-  "interface": {
-    "displayName": "Antigravity Meta Plugin Kit",
-    "shortDescription": "Plugin-authoring toolkit: meta skills, audit/hook/drift subagents, /meta-* workflows.",
-    "category": "Developer Tools",
-    "capabilities": [
-      "Skills",
-      "Subagents",
-      "Workflow",
-      "Rules",
-      "Hooks"
-    ],
-    "defaultPrompt": [
-      "meta-scaffold start a new Antigravity plugin",
-      "meta-hooks design a PreToolUse guard",
-      "meta-agents add a subagent to my plugin",
-      "/meta-audit review my plugin payload",
-      "/meta-scout check Antigravity for spec drift"
-    ],
-    "brandColor": "#5B8DEF"
-  }
+  "category": "Developer Tools",
+  "suggestedPrompts": [
+    "/meta-scaffold — scaffold a new Google Antigravity plugin repository",
+    "/meta-audit — audit a plugin payload beyond mechanical lint",
+    "/meta-doctor — diagnose installed plugins, collisions, and runtime traps"
+  ]
 }

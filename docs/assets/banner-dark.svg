@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 250" width="1000" height="250" role="img" aria-label="antigravity-meta-plugin-kit — Plugin Engineering Toolkit for Google Antigravity">
+  <defs>
+    <linearGradient id="bgDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1120"/>
+      <stop offset="55%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#111C33"/>
+    </linearGradient>
+    <radialGradient id="glowLeftDark" cx="14%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#4285F4" stop-opacity="0.28"/>
+      <stop offset="60%" stop-color="#6366F1" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#0B1120" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowRightDark" cx="92%" cy="18%" r="36%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#0B1120" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accentDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4285F4"/>
+      <stop offset="55%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="orbitDark" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.15"/>
+      <stop offset="50%" stop-color="#60A5FA" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#818CF8" stop-opacity="0.25"/>
+    </linearGradient>
+    <pattern id="gridDark" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#94A3B8" fill-opacity="0.12"/>
+    </pattern>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="999" height="249" rx="18" fill="url(#bgDark)" stroke="#1E293B" stroke-width="1"/>
+  <rect x="1" y="1" width="998" height="248" rx="18" fill="url(#gridDark)"/>
+  <rect x="1" y="1" width="998" height="248" rx="18" fill="url(#glowLeftDark)"/>
+  <rect x="1" y="1" width="998" height="248" rx="18" fill="url(#glowRightDark)"/>
+
+  <ellipse cx="940" cy="125" rx="140" ry="58" transform="rotate(-18 940 125)" fill="none" stroke="url(#orbitDark)" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- Emblem mark -->
+  <g transform="translate(52, 49)">
+    <rect x="0" y="0" width="152" height="152" rx="34" fill="#0B1222" stroke="url(#accentDark)" stroke-width="3.5"/>
+    <ellipse cx="76" cy="80" rx="64" ry="24" transform="rotate(-20 76 80)" fill="none" stroke="url(#orbitDark)" stroke-width="4"/>
+    <path d="M38 110 V46 L76 80 L114 46 V110" fill="none" stroke="#F8FAFC" stroke-width="12.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="76" cy="110" r="7" fill="#38BDF8"/>
+    <circle cx="129" cy="57" r="4.8" fill="#60A5FA"/>
+  </g>
+
+  <!-- Typography -->
+  <g transform="translate(242, 0)">
+    <text x="0" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="700" letter-spacing="2" fill="#60A5FA">GOOGLE ANTIGRAVITY · PLUGIN ENGINEERING TOOLKIT</text>
+    <text x="0" y="116" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" letter-spacing="-0.8" fill="#F8FAFC">antigravity-meta-plugin-kit</text>
+    <text x="0" y="150" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16.5" font-weight="400" fill="#CBD5E1">Scaffold, lint, diagnose, probe, and ship native plugins without runtime traps.</text>
+
+    <g transform="translate(0, 174)" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12" font-weight="600">
+      <rect x="0" y="0" width="120" height="30" rx="15" fill="#172554" stroke="#3B82F6" stroke-opacity="0.6"/>
+      <circle cx="17" cy="15" r="3.8" fill="#38BDF8"/>
+      <text x="28" y="19" fill="#DBEAFE">agy 1.5.17+</text>
+
+      <rect x="130" y="0" width="136" height="30" rx="15" fill="#1E293B" stroke="#475569" stroke-opacity="0.6"/>
+      <text x="198" y="19" text-anchor="middle" fill="#E2E8F0">CLI · App · IDE</text>
+
+      <rect x="276" y="0" width="128" height="30" rx="15" fill="#1E293B" stroke="#475569" stroke-opacity="0.6"/>
+      <text x="340" y="19" text-anchor="middle" fill="#E2E8F0">0 Dependencies</text>
+
+      <rect x="414" y="0" width="102" height="30" rx="15" fill="#1E293B" stroke="#475569" stroke-opacity="0.6"/>
+      <text x="465" y="19" text-anchor="middle" fill="#E2E8F0">Node &gt;= 20</text>
+
+      <rect x="526" y="0" width="164" height="30" rx="15" fill="#1E293B" stroke="#6366F1" stroke-opacity="0.6"/>
+      <text x="608" y="19" text-anchor="middle" fill="#C7D2FE">11 Skills · 3 Agents</text>
+    </g>
+  </g>
+</svg>

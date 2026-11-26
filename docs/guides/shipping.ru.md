@@ -1,101 +1,122 @@
-# Релиз: дистрибуция, обновления, маркетплейсы, релизные гейты
+# Релиз плагинов
 
-*[English](shipping.md) | Русский*
+[English](shipping.md) | Русский
 
-## Нативная дистрибуция через `agy plugin install`
+Поставляйте чистые плагины Google Antigravity без единого предупреждения через
+GitHub, локальные директории, репозитории команд или собственные маркетплейсы.
 
-Ни npm publish, ни инсталлера везти не нужно. Пользователи ставят прямо с
-GitHub через Antigravity CLI:
+## Нативные каналы установки
 
-```bash
-agy plugin install https://github.com/you/my-plugin   # клон, регистрация, установка
-```
-
-CLI клонирует репозиторий, сканирует его на корневую папку `plugins/`
-(«bulk plugins directory»), копирует каждый плагин в
-`~/.gemini/config/plugins/<name>/` и регистрирует установку в
-`~/.gemini/config/import_manifest.json`. Скажите пользователям перезапустить
-Antigravity после. Локальный чекаут ставится так же:
+Пользователи ставят нативные плагины Antigravity напрямую через `agy plugin
+install` — без скриптов-обёрток и сторонних менеджеров пакетов:
 
 ```bash
-agy plugin install path/to/my-plugin                  # локальная payload-папка
+# 1. Напрямую с GitHub (HTTPS)
+agy plugin install https://github.com/<owner>/<repo>
+
+# 2. Локальная папка во время разработки
+agy plugin install ./plugins/my-plugin
+
+# 3. Зарегистрированный маркетплейс
+agy plugin install my-plugin@my-marketplace
+
+# 4. Уровень проекта (внутри командного репозитория)
+# Положите плагин в <project>/.agents/plugins/my-plugin/ и закоммитьте.
 ```
 
-С CLI 1.0.9 `agy plugin install` также резолвит git-сабмодули. Короткие формы
-вроде `github:you/repo` или `you/repo` **отклоняются** — передавайте полный
-URL `https://github.com/...` или путь к директории.
+`agy plugin install` обновляет плагин атомарной заменой, отклоняет выходящие за
+границы симлинки и FIFO и хранит статус включения в `~/.gemini/config/config.json`.
 
-## Паттерн update
+## Предрелизный чеклист
 
-Отдельного подкоманды `agy plugin update` **нет**. **Update = повторный
-install** — он заново клонирует последний `main` и перерегистрирует:
+Перед созданием тега релиза проверьте каждый пункт:
+
+- [ ] `npm test` проходит чисто на Node >= 20.
+- [ ] `lint.mjs --strict .` завершается с кодом `0`, 0 ошибок и 0 предупреждений.
+- [ ] `agy plugin validate --strict --json plugins/<name>` завершается с кодом
+      `0` и `"findings": []`.
+- [ ] `plugin.json` — строгий JSON (без комментариев JSONC и висячих запятых),
+      валидный SemVer `version`, строгий kebab-case `name`, ноль неизвестных полей.
+- [ ] `logo` указывает на реальный квадратный файл (`>=128×128`, ~10%
+      прозрачных полей, не внутри папки с точкой).
+- [ ] Ноль захардкоженных секретов в `mcp_config.json`, скриптах и тестах.
+- [ ] Нет навязчивых глобальных `Stop`-хуков и раздутых always-on правил
+      (>150 строк), мешающих чужим воркспейсам.
+- [ ] Пройдена живая проверка в изолированном `/tmp` через `agy -p ... --add-dir`.
+
+## Требования Antigravity Marketplace
+
+Если вы готовите плагин к публикации в Antigravity Marketplace:
+
+- **`name`:** глобально уникальное имя в нижнем kebab-case.
+- **`displayName`:** краткое название без ведущего префикса `"Antigravity"`.
+- **`version`:** строгий SemVer (`MAJOR.MINOR.PATCH`).
+- **`description`:** 1–2 чётких предложения (120–160 символов).
+- **`logo`:** квадратный `.svg`/`.png`/`.webp` (`>=128×128`, поля ~10%) по
+  относительному пути вне папок с точкой или `https://` URL на домене Google.
+- **`suggestedPrompts`:** до **3** полезных стартовых промптов.
+- **`homepage` и `repository`:** валидные `https://` URL.
+- **Ноль предупреждений и заметок:** `agy plugin validate --strict --json
+  plugins/<name>` должен вернуть `"findings": []`.
+
+## Публикация через `marketplace.json`
+
+Для распространения нескольких плагинов через собственный каталог создайте
+`marketplace.json`, где каждое поле `plugins[i].source` — это **объект
+`archive` с `https://` URL и 64-символьным hex-дайджестом `sha256`** (никогда
+не строка, `"git"` или `"github"` — `agy 1.5.17` их отклоняет):
+
+```json
+{
+  "name": "acme-marketplace",
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "version": "1.0.0",
+      "description": "One-sentence summary.",
+      "source": {
+        "type": "archive",
+        "url": "https://github.com/acme/my-plugin/archive/refs/tags/v1.0.0.tar.gz",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}
+```
+
+Проверьте сам каталог офлайн (в CI) и через `agy`:
 
 ```bash
-agy plugin install https://github.com/you/my-plugin
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs lint --strict marketplace.json
+agy plugin validate --strict --json marketplace.json
 ```
 
-Поскольку CLI не пишет version-файл, печатать diff версий нечего; ссылайтесь
-на CHANGELOG, чтобы пользователи видели, что изменилось. Учтите, что
-переустановка Antigravity может стереть сторонние папки из
-`~/.gemini/config/plugins/`, поэтому рекомендуйте привычку `agy plugin list`
-после апдейта и переустановку, если плагин пропал (см.
-[internals](../internals.md)).
+## Офлайн-CI в GitHub Actions
 
-## enable / disable / uninstall
+На стандартных раннерах GitHub Actions нет установленного `agy`. Держите CI
+быстрым и строгим, запуская `npm test` и офлайн `lint.mjs --strict`, а `agy
+plugin validate --strict --json` — локально и на self-hosted раннерах:
 
-- **`agy plugin list`** — показывает установленные через CLI плагины; самое
-  быстрое подтверждение, что установка зарегистрировалась.
-- **`agy plugin enable|disable <name>`** — переключить плагин, не удаляя его.
-- **`agy plugin uninstall <name>`** — удаляет папку плагина и его запись в
-  `import_manifest.json`.
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    node-version: "22"
+- run: npm test
+- name: Офлайн строгий линт через antigravity-meta-plugin-kit
+  run: |
+    git clone --depth 1 https://github.com/sipki-tech/antigravity-meta-plugin-kit /tmp/meta-kit
+    node /tmp/meta-kit/plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs lint --strict .
+```
 
-Отдельной команды verify нет: `agy plugin validate <payload>` проверяет
-структуру, а `agy plugin list` (плюс живая сессия, видящая скиллы)
-подтверждает установку.
+Каждый репозиторий из `create.mjs` уже включает готовый
+`.github/workflows/ci.yml` для Node 20 и 22 на Ubuntu и macOS.
 
-## Релизные гейты (по порядку)
+## Версионирование и обновления
 
-1. `lint` — ноль FAIL, ноль warnings на вашем payload.
-2. `agy plugin validate plugins/<name>` — `[ok]`, hooks processed.
-3. `npm test` — зелёный локально.
-4. Зелёный CI: матрица ubuntu+macos × Node 20/22, `npm test` + структурный
-   шаг (`agy plugin validate`, когда `agy` есть на PATH).
-5. Проверка чистой машины: `agy plugin install https://github.com/you/my-plugin`
-   из чистого окружения → `agy plugin list` его показывает → сессия видит его
-   скиллы → `agy plugin uninstall <name>` чисто удаляет.
-6. Тег — **после** зелёного CI, никогда до. Release notes = секция
-   CHANGELOG.
+- Поднимайте `version` в `plugin.json` (и `package.json`, если он есть) по
+  SemVer (`MAJOR.MINOR.PATCH`) и ставьте аннотированный git-тег (`v1.0.0`).
+- Пользователи обновляются повторным запуском `agy plugin install
+  https://github.com/<owner>/<repo>` (Antigravity атомарно заменяет файлы,
+  сохраняя состояние включения и `PLUGIN_DATA`).
 
-## Версии и доки
-
-- SemVer + [Keep a Changelog](https://keepachangelog.com). Идеи вне скоупа —
-  в подсекцию `Backlog`, а не полу-отгрузкой.
-- Двуязычные доки меняются в одном коммите, секция к секции, — или никак.
-
-## Другие каналы дистрибуции
-
-- **Маркетплейсы**: `agy plugin install plugin@marketplace`;
-  `agy plugin link <marketplace> <target>` подключает свой.
-- **Миграция из Claude Code**: направляйте пользователей на
-  `agy plugin import claude` — Antigravity импортирует плагины Claude Code
-  (папка `commands/` при заглатывании конвертируется в скиллы).
-- Состоянием управляют через `agy plugin enable|disable <name>`.
-
-## Подводные камни
-
-- Тег до CI → сломанный тег уедет следующим `agy plugin install`.
-- Payload с закоммиченным `installed_version.json` → это артефакт времени
-  установки, а не файл payload; линт предупреждает.
-- Сказать пользователям «обновитесь», не перезапустив `agy plugin install` →
-  ничего не изменится; фонового авто-апдейта нет.
-
-## Чеклист
-
-- [ ] README документирует `agy plugin install` и апдейт через переустановку
-- [ ] `agy plugin list` / `uninstall` проверены на чистой машине
-- [ ] CI-матрица + `agy plugin validate` зелёные; тег только после
-- [ ] запись в CHANGELOG + Backlog для отложенных идей
-- [ ] EN/RU доки в одном коммите
-
-*См. также: [Быстрый старт](getting-started.ru.md) ·
-[Тестирование](testing.ru.md)*
+Далее: [Тестирование](testing.ru.md) · [Манифест и раскладки](plugin-manifest.ru.md) · [Исследование Antigravity](researching-antigravity.ru.md)

@@ -1,100 +1,124 @@
-# Shipping: distribution, updates, marketplaces, release gates
+# Shipping plugins
 
-*English | [Русский](shipping.ru.md)*
+English | [Русский](shipping.ru.md)
 
-## Native `agy plugin install` distribution
+Ship clean, zero-warning Google Antigravity plugins directly from GitHub,
+local directories, workspace repositories, or custom marketplaces.
 
-No npm publish, no installer to ship. Users install straight from GitHub with
-the Antigravity CLI:
+## Native installation channels
 
-```bash
-agy plugin install https://github.com/you/my-plugin   # clone, register, install
-```
-
-The CLI clones the repo, scans it for a top-level `plugins/` directory
-("bulk plugins directory"), copies each plugin into
-`~/.gemini/config/plugins/<name>/`, and registers the install in
-`~/.gemini/config/import_manifest.json`. Tell users to restart Antigravity
-afterwards. A local checkout installs the same way:
+Users install native Antigravity plugins directly with `agy plugin install` — no
+wrapper scripts or third-party package managers are needed:
 
 ```bash
-agy plugin install path/to/my-plugin                  # local payload dir
+# 1. Directly from GitHub (HTTPS)
+agy plugin install https://github.com/<owner>/<repo>
+
+# 2. Local directory during development
+agy plugin install ./plugins/my-plugin
+
+# 3. Registered marketplace
+agy plugin install my-plugin@my-marketplace
+
+# 4. Workspace-scoped (vendored inside a team repo)
+# Place the plugin at <project>/.agents/plugins/my-plugin/ and commit it.
 ```
 
-Since CLI 1.0.9, `agy plugin install` also resolves git submodules. Shorthands
-like `github:you/repo` or `you/repo` are **rejected** — pass the full
-`https://github.com/...` URL or a directory path.
+`agy plugin install` performs an atomic swap on updates, rejects escaping
+symlinks or FIFOs, and stores enablement under `~/.gemini/config/config.json`.
 
-## The update pattern
+## Pre-flight release checklist
 
-There is **no** `agy plugin update` subcommand. **Update = re-run install** —
-it re-clones the latest `main` and re-registers:
+Before tagging a release, verify every item:
+
+- [ ] `npm test` passes cleanly on Node >= 20.
+- [ ] `lint.mjs --strict .` exits `0` with 0 errors and 0 warnings.
+- [ ] `agy plugin validate --strict --json plugins/<name>` exits `0` with
+      `"findings": []`.
+- [ ] `plugin.json` is strict JSON (no JSONC comments or trailing commas),
+      valid SemVer `version`, strict kebab-case `name`, and zero unknown keys.
+- [ ] `logo` points to a real square asset (`>=128×128`, ~10% transparent
+      padding, not inside a dot-prefixed directory).
+- [ ] Zero hardcoded secrets in `mcp_config.json`, scripts, or tests.
+- [ ] No intrusive global `Stop` hooks or bloated always-on rules (>150 lines)
+      that penalize unrelated workspaces.
+- [ ] Verified in an isolated `/tmp` workspace via `agy -p ... --add-dir`.
+
+## Antigravity Marketplace requirements
+
+If you plan to list your plugin in a public Antigravity Marketplace:
+
+- **`name`:** globally unique lowercase kebab-case.
+- **`displayName`:** concise title without a leading `"Antigravity"` prefix.
+- **`version`:** strict SemVer (`MAJOR.MINOR.PATCH`).
+- **`description`:** 1–2 crisp sentences (120–160 characters).
+- **`logo`:** square `.svg`/`.png`/`.webp` (`>=128×128`, ~10% padding) at a
+  relative path outside dot-prefixed folders, or an `https://` URL on a Google
+  domain.
+- **`suggestedPrompts`:** up to **3** actionable starter prompts.
+- **`homepage` & `repository`:** valid `https://` URLs.
+- **Zero validator notes or warnings:** run `agy plugin validate --strict
+  --json plugins/<name>` and confirm `"findings": []`.
+
+## Publishing via `marketplace.json`
+
+To distribute multiple plugins through a custom marketplace catalog, create a
+`marketplace.json` where every `plugins[i].source` is an **`archive` object
+with an `https://` URL and a 64-character hex `sha256` digest** (never a bare
+string, `"git"`, or `"github"` — `agy 1.5.17` rejects all of those):
+
+```json
+{
+  "name": "acme-marketplace",
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "version": "1.0.0",
+      "description": "One-sentence summary.",
+      "source": {
+        "type": "archive",
+        "url": "https://github.com/acme/my-plugin/archive/refs/tags/v1.0.0.tar.gz",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}
+```
+
+Validate the catalog both offline (in CI) and with `agy`:
 
 ```bash
-agy plugin install https://github.com/you/my-plugin
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs lint --strict marketplace.json
+agy plugin validate --strict --json marketplace.json
 ```
 
-Because the CLI writes no version-file, there is no version-diff to print;
-link the CHANGELOG so users can see what changed. Note that an Antigravity
-re-provisioning can wipe third-party dirs from `~/.gemini/config/plugins/`, so
-recommend a post-update `agy plugin list` habit and a re-install if a plugin
-went missing (see [internals](../internals.md)).
+## Offline CI with GitHub Actions
 
-## enable / disable / uninstall
+GitHub-hosted runners do not preinstall `agy`. Keep CI fast and authoritative
+by running both `npm test` and offline `lint.mjs --strict`, while running `agy
+plugin validate --strict --json` whenever `agy` is available (locally or on a
+self-hosted runner):
 
-- **`agy plugin list`** — shows CLI-installed plugins; the fastest confirmation
-  an install registered.
-- **`agy plugin enable|disable <name>`** — toggle a plugin without removing it.
-- **`agy plugin uninstall <name>`** — removes the plugin dir and its
-  `import_manifest.json` entry.
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    node-version: "22"
+- run: npm test
+- name: Offline strict lint via antigravity-meta-plugin-kit
+  run: |
+    git clone --depth 1 https://github.com/sipki-tech/antigravity-meta-plugin-kit /tmp/meta-kit
+    node /tmp/meta-kit/plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs lint --strict .
+```
 
-There is no separate verify command: `agy plugin validate <payload>` checks
-structure, and `agy plugin list` (plus a live session that sees the skills)
-confirms the install.
+Every repository generated by `create.mjs` ships a ready-to-run
+`.github/workflows/ci.yml` testing Node 20 and 22 across Ubuntu and macOS.
 
-## Release gates (in order)
+## Versioning and updates
 
-1. `lint` — zero FAIL, zero warnings on your payload.
-2. `agy plugin validate plugins/<name>` — `[ok]`, hooks processed.
-3. `npm test` — green locally.
-4. CI green: matrix ubuntu+macos × Node 20/22, `npm test` + a structural
-   step (`agy plugin validate` when `agy` is on PATH).
-5. Fresh-machine check: `agy plugin install https://github.com/you/my-plugin`
-   from a clean environment → `agy plugin list` shows it → a session sees its
-   skills → `agy plugin uninstall <name>` removes it cleanly.
-6. Tag **after** CI is green, never before. Release notes = the CHANGELOG
-   section.
+- Bump `plugin.json` `version` (and `package.json` `version` if present) using
+  SemVer (`MAJOR.MINOR.PATCH`), and create an annotated git tag (`v1.0.0`).
+- Users update by re-running `agy plugin install https://github.com/<owner>/<repo>`
+  (Antigravity replaces the plugin atomically while preserving user enablement
+  and `PLUGIN_DATA`).
 
-## Versioning & docs
-
-- SemVer + [Keep a Changelog](https://keepachangelog.com). Park out-of-scope
-  ideas in a `Backlog` subsection instead of half-shipping them.
-- Bilingual docs change in the same commit, section for section, or not at
-  all.
-
-## Other distribution channels
-
-- **Marketplaces**: `agy plugin install plugin@marketplace`;
-  `agy plugin link <marketplace> <target>` links one.
-- **Claude Code migration**: point users at `agy plugin import claude` —
-  Antigravity imports Claude Code plugins (a `commands/` dir is converted to
-  skills on ingestion).
-- Users manage state with `agy plugin enable|disable <name>`.
-
-## Pitfalls
-
-- Tagging before CI → a broken tag ships as the next `agy plugin install`.
-- Shipping a payload with `installed_version.json` committed → it is an
-  install-time artifact, never a payload file; lint warns.
-- Telling users to "update" without re-running `agy plugin install` → nothing
-  changes; there is no background auto-update.
-
-## Checklist
-
-- [ ] README documents `agy plugin install` and the re-install update path
-- [ ] `agy plugin list` / `uninstall` confirmed on a fresh machine
-- [ ] CI matrix + `agy plugin validate` green; tag only after
-- [ ] CHANGELOG entry + Backlog for deferred ideas
-- [ ] EN/RU docs in the same commit
-
-*See also: [Getting started](getting-started.md) · [Testing](testing.md)*
+Next: [Testing](testing.md) · [Plugin manifest & layouts](plugin-manifest.md) · [Researching Antigravity](researching-antigravity.md)

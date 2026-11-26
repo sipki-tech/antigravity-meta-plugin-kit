@@ -1,42 +1,46 @@
 ---
 name: {{name}}-example
-description: Example skill for the {{name}} plugin. Use when the user says "{{name}}-example" or asks what this plugin can do. Replace this with a real skill before shipping.
+description: >-
+  Example skill for {{displayName}}. Use when the user says "{{name}}-example"
+  or asks what this plugin can do. Don't use for unrelated coding tasks.
 ---
 
 # {{name}}-example — replace me with a real skill
 
 ## Goal
 
-Demonstrate the SKILL.md shape the Antigravity loader expects, so the first
-real skill of {{name}} starts from a correct template instead of a blank file.
+Demonstrate the `SKILL.md` anatomy expected by Google Antigravity (`agy 1.5.17+`),
+so the first real skill of `{{name}}` starts from a verified skeleton.
 
 ## Instructions
 
-1. Rename this directory and the `name:` field together — they must match.
-2. Rewrite `description:` so it contains the phrase a user would actually say
-   to trigger the skill (keep it quoted, e.g. "{{name}}-example").
-3. Replace the sections below with the real playbook: concrete steps, not
-   aspirations. Bulky material goes into the official subdirs — `scripts/`
-   (executable helpers), `references/` (long docs), `resources/` (templates);
-   link them relatively, e.g. the XML-structured
-   [prompt template](./resources/prompt-template.md).
-4. Run `npx github:sipki-tech/antigravity-meta-plugin-kit lint .` from the
-   repo root after editing.
+1. Rename this directory and the `name:` field together — they must match and be
+   strict lowercase kebab-case.
+2. Rewrite `description:` with both **when to use** (positive trigger) and
+   **when not to use** (`Don't use for...`). Multiline `>-` YAML is supported.
+3. Replace these sections with concrete, numbered steps. Put bulky templates or
+   reference docs in `resources/` or `references/` and link them relatively (see
+   [prompt template](./resources/prompt-template.md)) to stay well below the
+   24,000-byte body truncation cap.
+4. Validate with both gates from the repository root:
+   - `agy plugin validate --strict plugins/{{name}}`
+   - `node "$KIT/scripts/lint.mjs" --strict .` (where `$KIT` is
+     `~/.gemini/config/plugins/antigravity-meta-plugin-kit`)
 
 ## Definition of Done
 
-- The skill triggers when the wake phrase from the description is used.
-- `lint` passes: frontmatter valid, trigger phrase present.
+- Both `agy plugin validate --strict` and `lint.mjs --strict` pass with 0 warnings.
+- Body stays concise and well under 24,000 bytes.
+- The skill routes reliably when the trigger phrase is used.
 
 ## Constraints
 
-- Keep the skill focused on one job; split unrelated playbooks into separate
-  skills.
-- Keep it short — every line costs context tokens in the host session.
+- One skill = one focused job; split unrelated playbooks into separate skills.
+- Keep it concise — every line costs session context tokens once activated.
 
 ## Rationalizations
 
-- "The description is just metadata" → it is the only text the router sees;
-  without a trigger phrase the skill never fires.
-- "I'll flesh this out later" → an unfinished skill still routes and wastes
-  tokens; finish it or delete it before shipping.
+- "The description is just metadata" -> it is the only text the router sees;
+  without clear positive and negative boundaries the skill misfires or never loads.
+- "I'll finish this example later" -> an unfinished skill still registers as
+  `/{{name}}-example` and wastes metadata tokens; replace or delete it before shipping.

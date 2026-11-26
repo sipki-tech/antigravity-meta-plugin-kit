@@ -1,104 +1,131 @@
-# Testing: the zero-dependency node --test doctrine
+# Testing plugins
 
-*English | [Русский](testing.ru.md)*
+English | [Русский](testing.ru.md)
 
-Plugins run inside other people's sessions — an untested hook that exits
-non-zero takes a session down. The doctrine: **logic importable, wrappers
-thin, wire contracts spawned**, zero test frameworks (`node:test` +
-`node:assert/strict` only).
+Reliable Antigravity plugins are verified across four fast, complementary layers
+using zero third-party test dependencies (built-in `node:test` + `node:assert/strict`).
 
-## Structure for testability
+## Four verification layers
 
-Keep behavior in exported functions; the executable entry is a guarded
-one-liner:
+1. **Unit & hook e2e tests (`npm test`)** — deterministic offline tests in
+   `node:test` verifying hook wire contracts, fail-open behavior, and manifest
+   invariants.
+2. **Offline strict lint (`lint.mjs --strict`)** — runs in CI without `agy`,
+   enforcing `agy plugin validate --strict` parity plus runtime blind spots.
+3. **Official validator (`agy plugin validate --strict --json`)** — Google's
+   authoritative structural oracle locally (and in CI when `agy` is available).
+4. **Isolated live `agy -p` smoke test** — verifies real subagent loading, hook
+   firing, and tool restrictions in a throwaway `/tmp` workspace.
 
-```js
-export function checkCommand(cmd) { /* pure logic */ }
+## 1. Unit and e2e tests with `node:test`
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href)
-  runHook((input) => checkCommand(commandLineOf(input)));
+Run the entire suite with:
+
+```bash
+npm test    # executes `node --test`
 ```
 
-Unit tests then import `checkCommand` directly — no process spawning, sub-ms
-tests.
+The default scaffold includes two starter suites (omitting `hook.test.mjs` with
+`--minimal`, and adding `test/cli.test.mjs` with `--with-cli`):
+- `test/manifest.test.mjs` — asserts strict JSON parsing, semver `version`,
+  kebab-case `name`, existing `logo`, and valid `hooks.json` (when present).
+- `test/hook.test.mjs` — spawns the real hook script as a child process, feeds
+  realistic camelCase `agy 1.5.17` protojson over `stdin`, and asserts exit
+  code `0` plus valid JSON on `stdout`.
 
-## Hook e2e — test the wire, not just the logic
+### Testing `PreToolUse` and `Stop` hooks end-to-end
 
-```js
-const res = spawnSync(process.execPath, [script], {
-  input: JSON.stringify(input),
-  encoding: "utf8",
-  timeout: 10000,
-});
-assert.equal(res.status, 0);          // ALWAYS — even on junk input
-const out = JSON.parse(res.stdout);
-assert.equal(out.decision, "allow");  // official key
-assert.equal(out.allow_tool, true);   // legacy key, while the template ships both
-```
-
-Feed three inputs at minimum: the real event shape, junk
-(`{"totally": "unexpected"}`), and empty stdin. A fail-open hook answers
-allow/silent with exit 0 to all of them.
-
-## Script/tool tests — temp roots, never your real home
-
-A native-only payload has no installer to test; the install itself is the
-Antigravity CLI's job (`agy plugin install`). What you *do* test is any
-bundled `scripts/` tool, always against a throwaway root:
+Always test **four cases** for every hook script:
+1. **Allow / happy path** — benign input returns `{"decision": "allow"}` (or `{}` / `{"decision": ""}`).
+2. **Block / rewrite path** — target trigger returns the exact expected `deny`,
+   `overwrite`, `injectSteps`, or `continue` payload.
+3. **Malformed or empty stdin** — broken JSON or `{}` still exits `0` with the
+   fail-open fallback (never throws or exits non-zero).
+4. **Loop prevention (for `Stop` hooks)** — confirm the hook returns
+   `{"decision": ""}` when `terminationReason !== "NO_TOOL_CALL"`, when
+   `continuationActive: true`, **and** when `continuationActive: false` with
+   `executionNum: 1` (covering the `agy 1.5.17` `continuationActive` bug).
 
 ```js
-const home = mkdtempSync(join(tmpdir(), "my-plugin-test-"));
-runTool({ home });                    // or { workspace: dir }
-```
+import { spawnSync } from "node:child_process";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 
-For any tool that supports `--dry-run` (e.g. a scaffolder), assert the
-journal contract explicitly:
+function runHook(script, stdin) {
+  const res = spawnSync(process.execPath, [script], {
+    input: typeof stdin === "string" ? stdin : JSON.stringify(stdin),
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.equal(res.status, 0, `hook exited ${res.status}: ${res.stderr}`);
+  return JSON.parse(res.stdout.trim());
+}
 
-```js
-const { actions } = runTool({ home, dryRun: true });
-assert.ok(actions.length > 0);                      // the plan exists
-assert.equal(existsSync(join(home, ".gemini")), false);  // nothing written
-```
+test("PreToolUse blocks dangerous command and fails open on garbage", () => {
+  const blocked = runHook("plugins/my-plugin/scripts/example-guard.mjs", {
+    hookEventName: "PreToolUse",
+    toolCall: { id: "1", name: "run_command", args: { CommandLine: "rm -rf /" } },
+  });
+  assert.equal(blocked.decision, "deny");
 
-If your tool merges MCP config, assert the contract: pre-seed a user server,
-run merge then prune, and confirm the user's entry survived byte-identical.
-
-## Tool e2e
-
-`spawnSync(process.execPath, [tool, ...args], { cwd })`; assert exit code,
-stdout patterns, and that user errors print a friendly message without a
-stack trace.
-
-## Traps we hit so you don't
-
-- **`node --test <dir>` breaks on Node 22** (Node 20 scans the directory;
-  22 rejects it). Use a glob in package.json:
-  `"test": "node --test test/*.test.mjs"`.
-- **A spawned `node --test` inherits `NODE_TEST_CONTEXT`** when the parent
-  is itself a test — the child reports success without running anything.
-  When your test spawns another test runner, clean the env and assert
-  `# pass [1-9]` in the output.
-- With `pipefail` in CI, `cmd | grep -q x` can mask or surface pipe errors —
-  prefer asserting in the test suite over shell pipelines.
-
-## Integration with the official validator
-
-Gate on `agy plugin validate` where the CLI exists, skip elsewhere:
-
-```js
-const AGY = spawnSync("which", ["agy"], { encoding: "utf8" });
-test("agy validate", (t) => {
-  if (AGY.status !== 0) return t.skip("agy not on PATH");
-  // spawn agy plugin validate, strip ANSI, assert "hooks : N processed"
+  const failOpen = runHook("plugins/my-plugin/scripts/example-guard.mjs", "{not-json");
+  assert.equal(failOpen.decision, "allow");
 });
 ```
 
-## Checklist
+## 2. Offline strict lint (`lint.mjs --strict`)
 
-- [ ] every hook: unit test of logic + e2e with real/junk/empty stdin
-- [ ] dry-run test proves zero filesystem writes
-- [ ] MCP merge/prune covered with a pre-seeded user server
-- [ ] `"test": "node --test test/*.test.mjs"` (glob, not directory)
-- [ ] CI matrix runs it on ubuntu+macos × Node 20/22
+Run the kit's linter locally and in every GitHub Actions job:
 
-*See also: [Hooks](hooks.md) · [Shipping](shipping.md)*
+```bash
+node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs --strict .
+node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs --strict --json .
+```
+
+Pass `--all` in multi-plugin repositories to validate every directory under
+`plugins/`. `--strict` promotes warnings to exit code `1` so runtime traps
+(`agents/*.toml`, unknown `tools:`, `grep_search`, `type: "prompt"`, missing
+`Stop` loop guards, `{a,b}` globs, `/sse` MCP endpoints) break CI immediately.
+
+## 3. Official validator (`agy plugin validate --strict --json`)
+
+Whenever `agy` is installed locally, run Google's validator and assert an empty
+`findings` array:
+
+```bash
+agy plugin validate --strict --json plugins/my-plugin
+```
+
+You can also wrap this check inside a `node:test` file that skips cleanly when
+`agy` is not on `PATH` (see `test/agy-validate.test.mjs` in this repository).
+
+## 4. Isolated live `agy -p` smoke test
+
+Before releasing a plugin that adds subagents or hooks, test it in a clean
+`/tmp` directory so you never touch `~/.gemini/config/plugins/`:
+
+```bash
+WS=$(mktemp -d /tmp/agy-smoke-XXXXXX)
+mkdir -p "$WS/.git" "$WS/.agents/plugins"
+cp -R plugins/my-plugin "$WS/.agents/plugins/my-plugin"
+
+agy -p "Confirm which subagents and skills from my-plugin are visible." \
+  --add-dir "$WS" \
+  --model gemini-3.8-flash-low \
+  --print-timeout 45s
+
+rm -rf "$WS"
+```
+
+Always pass `--add-dir "$WS"` — non-interactive `agy -p` only discovers
+workspace `.agents/plugins/` directories explicitly added to the workspace.
+
+## Documentation parity checks
+
+If your plugin maintains bilingual docs (EN + RU), keep a small parity test
+(like `test/docs-parity.test.mjs` in this repo) that checks:
+- Identical heading-level structure between each `.md` and `.ru.md` pair.
+- Russian documents cross-link to `.ru.md` siblings rather than English pages.
+- Zero obsolete or broken patterns across docs, skills, agents, and templates.
+
+Next: [Shipping](shipping.md) · [Lifecycle hooks](hooks.md) · [Researching Antigravity](researching-antigravity.md)

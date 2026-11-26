@@ -1,86 +1,84 @@
 ---
 name: meta-scaffold
-description: Scaffold a correct Antigravity plugin repository. Use when the user says "meta-scaffold" or asks to start, structure, or bootstrap a new Antigravity plugin. Covers payload anatomy, plugin.json fields, and the loader traps checklist.
+description: >-
+  Scaffold and architect a native Google Antigravity plugin repository (agy
+  1.5.17+). Use when the user says "meta-scaffold" or asks to start, structure,
+  or choose components for a new Antigravity plugin. Don't use for editing
+  hooks or writing SKILL.md bodies in an existing plugin.
 ---
 
-# meta-scaffold — start an Antigravity plugin from a correct skeleton
+# meta-scaffold — start an Antigravity plugin from a verified skeleton
 
 ## Goal
 
-Produce a plugin repository that the Antigravity loader actually loads, by
-starting from a generated skeleton instead of hand-writing files that trip
-undocumented validation.
+Produce a clean, publishable Google Antigravity plugin repository that passes
+both `agy plugin validate --strict --json` and this kit's `lint.mjs --strict`
+out of the box, with the right component architecture from day one.
 
-## The bundled tools
+## Bundled tools
 
-This kit's `create` and `lint` scripts ship inside this plugin. Run them from
-its install directory — write `$KIT` for that path:
-`~/.gemini/config/plugins/antigravity-meta-plugin-kit` for a global install
-(shows in `agy plugin list`), or
-`<project>/.agents/plugins/antigravity-meta-plugin-kit` when it's vendored into
-a project (workspace-discovered — not tracked by `agy plugin list`).
+Run `create.mjs` and `lint.mjs` from this kit's install directory (`$KIT` =
+`~/.gemini/config/plugins/antigravity-meta-plugin-kit` for global install, or
+`<project>/.agents/plugins/antigravity-meta-plugin-kit` if vendored).
 
 ## Instructions
 
-1. Run `node "$KIT/scripts/create.mjs" <name>` (kebab-case name). Preview first
-   with `--dry-run` if unsure. It produces a **native-only** plugin repo — a
-   bare payload plus tests and CI, installed via `agy plugin install`, with no
-   bundled Node installer.
-2. Know what you got — payload anatomy under `plugins/<name>/`:
-   - `plugin.json` — the manifest. `author` MUST be an object
-     (`{"name": "..."}`), never a string. Officially only `name` is needed
-     (CLI world); the rich fields (`version`, `description`, `repository`,
-     `license`, `keywords`, `skills`/`rules`/`hooks` paths, `interface`
-     {displayName, shortDescription, category, capabilities[],
-     defaultPrompt[], brandColor}) are the authoring profile for the IDE
-     plugin-manager world — ship them.
-   - `hooks.json` — at the plugin ROOT (official location; `agy plugin
-     validate` looks only there). Top-level keys are hook names — the plugin
-     name is a convention, an event name there is an error.
-   - `skills/<skill>/SKILL.md` — skills live INSIDE the plugin directory;
-     official subdirs: `scripts/`, `examples/`, `resources/`, `references/`.
-   - `rules/*.md` — plain markdown, always-on session rules.
-   - `agents/*.toml` — optional subagents (`create --with-agents`); format is
-     validator-known but officially undocumented.
-   - `mcp_config.json` — MCP servers; entries for optional binaries ship
-     `"disabled": true`.
-3. `installed_version.json` is an install-time artifact, NOT a payload file —
-   two install worlds handle it differently: the IDE plugin-manager writes
-   `{"version": "<semver>"}` into the installed copy, while `agy plugin
-   install` instead registers the plugin in `~/.gemini/config/
-   import_manifest.json` and writes no version-file (skills still load —
-   probed 2026-07-12). Either way, never commit it to the payload.
-4. Fill the TODOs in `plugin.json` and the example skill, then re-run
-   `node "$KIT/scripts/lint.mjs" .` from the repo root until every check
-   passes. Also run the official structural validator:
-   `agy plugin validate plugins/<name>` — the two cover different ground
-   (it: CLI-world structure; lint: IDE traps, rules, workflows, style).
-5. Verify a real install: `agy plugin install plugins/<name>` (installs the
-   local payload dir), then `agy plugin list` to confirm it registered.
-   `agy plugin uninstall <name>` cleans up.
+1. Pick the right Antigravity components before generating anything:
+   - **On-demand procedure / slash command** -> `skills/<name>/SKILL.md` (add
+     `disable-model-invocation: true` for explicit `/cmd`-only workflows).
+   - **Isolated specialist persona / parallel worker** -> `agents/<name>.md`
+     (see `meta-agents`; wrap in a slash skill if users need `/<cmd>`).
+   - **Always-on or scoped constraints** -> `rules/AGENTS.md` (always-on, no
+     frontmatter) or `rules/<name>.md` with `trigger:` (see `meta-rules`).
+   - **Deterministic enforcement / arg rewrite / loop gate** -> root
+     `hooks.json` + fail-open script (see `meta-hooks`).
+   - **External service integration** -> `mcp_config.json` (Streamable HTTP /
+     Stdio / MCP Apps) OR a self-contained CLI in `scripts/` + `auth.json` +
+     skill (see `meta-mcp`).
+   - **Background daemon / scheduler / Aux Pane UI** ->
+     `sidecars/<id>/sidecar.json`.
+   - **Never use** `workflows/*.md`, `commands/`, or `agents/*.toml` in plugins.
+2. Scaffold the repository:
+   ```bash
+   node "$KIT/scripts/meta-kit.mjs" create <kebab-name> [--minimal] [--with-agents] [--with-sidecar] [--with-cli] [--manifest-layout root|dot-antigravity] [--dry-run]
+   ```
+   Combine `--minimal --with-cli` for the lightweight Google Workspace pattern
+   (bundled Node CLI + `auth.json` + skill, zero hooks or MCP overhead).
+3. Know the flat `plugin.json` schema (`agy 1.5.17+`):
+   - Supported fields: `name`, `displayName` (no leading `"Antigravity"`),
+     `version`, `description`, `logo` (`assets/logo.svg`, square >=128x128),
+     `author` (string or `{name, url?, email?}`), `homepage`, `repository`
+     (`https://`), `license`, `keywords`, `category`, `suggestedPrompts`
+     (max 3), `disabled`, `skills`, `extensions["com.google.antigravity"]`.
+   - **Never add** `interface`, `rules`, `hooks`, `agents`, or `mcpServers` to
+     `plugin.json` — they are ignored and fail `--strict`.
+   - Keep `plugin.json` **strict JSON** (no comments/trailing commas — `agy
+     plugin install` rejects JSONC).
+4. Replace the `TODO` placeholders, then run all three gates:
+   ```bash
+   npm test
+   node "$KIT/scripts/meta-kit.mjs" lint --strict .
+   agy plugin validate --strict --json plugins/<name>
+   ```
+5. Verify installation: `agy plugin install plugins/<name>`, confirm with
+   `agy plugin list`, clean up with `agy plugin uninstall <name>`.
 
 ## Definition of Done
 
-- `lint` passes with zero FAIL lines and zero warnings.
-- `agy plugin validate` reports `[ok]` with hooks/skills processed (when the
-  `agy` CLI is available).
-- `npm test` inside the scaffolded repo is green.
-- A real `agy plugin install` of the payload registers in `agy plugin list`.
+- `npm test`, `lint.mjs --strict`, and `agy plugin validate --strict --json`
+  all pass with 0 errors and 0 warnings (and 0 notes once `logo` is set).
+- No `TODO` placeholders remain in `plugin.json` or `README.md`.
 
 ## Constraints
 
-- Do not hand-edit generated JSON into shapes the linter rejects "just to
-  try" — every lint rule maps to an observed loader failure.
-- Do not add runtime dependencies to the plugin; Node built-ins only.
+- Keep zero runtime dependencies in generated plugins (Node >= 20 built-ins).
+- Never commit `installed_version.json` — Antigravity tracks enablement in
+  `~/.gemini/config/config.json` and installs in `import_manifest.json`.
 
 ## Rationalizations
 
-- "I'll hand-write plugin.json, it's just JSON" → the string-`author` and
-  missing-`interface` traps are exactly what hand-writing produces; scaffold
-  and edit instead.
-- "A raw copy into the plugins dir worked for me once" → the IDE
-  plugin-manager needs `installed_version.json` to recognize a dir; `agy
-  plugin install` needs its `import_manifest` entry. A hand-copied dir has
-  neither — install through the CLI and let it register the plugin.
-- "I'll skip lint until the plugin is finished" → lint is how you find loader
-  traps while the diff is still small; run it after every payload change.
+- "I'll hand-write `plugin.json` and `rules/style.md`" -> hand-written files
+  regularly miss `trigger:` on `rules/*.md`, add dead `interface` keys, or omit
+  `logo`; start from `create.mjs` and edit.
+- "I'll use `workflows/` for my `/cmd`" -> plugins never load Markdown
+  workflows in `agy 1.5.17`; ship a skill with `disable-model-invocation: true`.

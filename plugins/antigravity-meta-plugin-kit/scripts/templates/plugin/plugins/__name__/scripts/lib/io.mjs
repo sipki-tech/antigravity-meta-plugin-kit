@@ -1,45 +1,138 @@
-// Shared stdin/stdout plumbing for hook handlers.
-// Contract: hooks are fail-open — any internal error must resolve to an
-// "allow" response with exit code 0, never break the host session.
-// Derived from antigravity-kit's io.mjs, extended for the official 2026-07
-// hook contracts (CLI 1.0.16 builtin docs): decision dialect, ephemeral
-// injection. Legacy keys (allow_tool/deny_reason) are kept alongside the
-// official ones until pre-2026-07 builds die out; unknown keys are ignored.
+// Shared stdin/stdout plumbing for Antigravity lifecycle hook handlers.
+// Contract: hooks are fail-open — any internal error must resolve to a safe
+// allow/silent JSON response with exit code 0, never break the host session.
+// Follows the official Antigravity 1.5.x camelCase protojson wire contracts.
+import { realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
-export const ALLOW = { decision: "allow", allow_tool: true };
+// --- Main-module guard (symlink & macOS /tmp -> /private/tmp safe) ---
+export function isMainModule(metaUrl, argv1 = process.argv[1]) {
+  if (!argv1) return false;
+  try {
+    return metaUrl === pathToFileURL(realpathSync(argv1)).href;
+  } catch {
+    return false;
+  }
+}
 
-// Empty object = successful no-op hook result (per Antigravity semantics).
+// --- PreToolUse responses ---
+export const ALLOW = { decision: "allow" };
+
+// Empty object = successful silent no-op (PostToolUse, SessionStart,
+// PreInvocation, PostInvocation).
 export const SILENT = {};
 
 export function denyResponse(reason) {
-  return { decision: "deny", reason, allow_tool: false, deny_reason: reason };
+  return { decision: "deny", reason };
 }
 
-// Context-injection wire formats used by PreInvocation/PostInvocation hooks.
+export function askResponse(reason, permissionOverrides) {
+  return {
+    decision: "ask",
+    ...(reason ? { reason } : {}),
+    ...(Array.isArray(permissionOverrides) && permissionOverrides.length > 0
+      ? { permissionOverrides }
+      : {}),
+  };
+}
+
+export function forceAskResponse(reason, permissionOverrides) {
+  return {
+    decision: "force_ask",
+    ...(reason ? { reason } : {}),
+    ...(Array.isArray(permissionOverrides) && permissionOverrides.length > 0
+      ? { permissionOverrides }
+      : {}),
+  };
+}
+
+// Shallow top-level merge into toolCall.args before execution (verified live
+// on agy 1.5.17/1.5.18).
+export function overwriteResponse(overwrite, reason) {
+  return {
+    decision: "allow",
+    overwrite,
+    ...(reason ? { reason } : {}),
+  };
+}
+
+// --- SessionStart / PreInvocation / PostInvocation responses ---
+// Canonical systemMessage step (nested object; replaces deprecated
+// ephemeralMessage). Set userMarkdown to render inline markdown for the user
+// without sending it to the model.
+export function systemMessageResponse(text, { userMarkdown } = {}) {
+  return {
+    injectSteps: [
+      {
+        systemMessage: {
+          systemMessage: String(text ?? ""),
+          ...(userMarkdown ? { metadata: { user_markdown: String(userMarkdown) } } : {}),
+        },
+      },
+    ],
+  };
+}
+
 export function injectResponse(text) {
-  return { injectSteps: [{ userMessage: text }] };
+  return { injectSteps: [{ userMessage: String(text ?? "") }] };
 }
 
-// Transient system message — does not persist in the conversation history.
-export function ephemeralResponse(text) {
-  return { injectSteps: [{ ephemeralMessage: text }] };
+// Shows an error to the user without sending it to the model and halts the
+// turn before/after invocation (PreInvocation / PostInvocation).
+export function errorTerminateResponse(userMessage) {
+  return {
+    injectSteps: [{ errorMessage: { userMessage: String(userMessage ?? "") } }],
+    terminationBehavior: "terminate",
+  };
 }
 
+// Re-enters the execution loop from PostInvocation.
+export function forceContinueResponse(injectSteps = []) {
+  return { injectSteps, terminationBehavior: "force_continue" };
+}
+
+// --- Stop responses ---
+export const STOP_ALLOW = { decision: "" };
+
+export function continueStopResponse(reason) {
+  return { decision: "continue", reason };
+}
+
+// Loop-prevention guard for Stop hooks. On agy 1.5.17+, live probes observed
+// `continuationActive` staying false on `executionNum > 0`, so check BOTH.
+export function isStopContinuation(input) {
+  return Boolean(
+    input?.continuationActive ||
+      (typeof input?.executionNum === "number" && input.executionNum > 0),
+  );
+}
+
+// --- Stdin / Stdout transport ---
 export async function readStdinJson(timeoutMs = 3000) {
+  if (process.stdin.readableEnded) return {};
   const chunks = [];
   const raw = await new Promise((resolve) => {
-    const finish = () => resolve(Buffer.concat(chunks).toString("utf8"));
+    let settled = false;
+    const onData = (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(String(c)));
+    const cleanup = () => {
+      process.stdin.off("data", onData);
+      process.stdin.off("end", onEnd);
+      process.stdin.off("error", onEnd);
+      process.stdin.pause();
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      cleanup();
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    };
+    const onEnd = () => finish();
     const timer = setTimeout(finish, timeoutMs);
     timer.unref?.();
-    process.stdin.on("data", (c) => chunks.push(c));
-    process.stdin.on("end", () => {
-      clearTimeout(timer);
-      finish();
-    });
-    process.stdin.on("error", () => {
-      clearTimeout(timer);
-      finish();
-    });
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.on("error", onEnd);
   });
   if (!raw.trim()) return {};
   try {
@@ -49,8 +142,25 @@ export async function readStdinJson(timeoutMs = 3000) {
   }
 }
 
-export function respond(payload) {
-  process.stdout.write(JSON.stringify(payload) + "\n");
+export function safeSerialize(payload, fallback = SILENT) {
+  try {
+    const json = JSON.stringify(payload);
+    if (typeof json === "string") return json;
+  } catch {}
+  try {
+    const fb = JSON.stringify(fallback);
+    if (typeof fb === "string") return fb;
+  } catch {}
+  return "{}";
+}
+
+export function respond(payload, onFlushed, fallback = SILENT) {
+  const line = safeSerialize(payload, fallback) + "\n";
+  if (typeof onFlushed === "function") {
+    process.stdout.write(line, onFlushed);
+  } else {
+    process.stdout.write(line);
+  }
 }
 
 export async function runHook(handler, fallback = ALLOW) {
@@ -61,25 +171,29 @@ export async function runHook(handler, fallback = ALLOW) {
   } catch {
     out = null;
   }
-  respond(out ?? fallback);
-  process.exit(0);
+  respond(out ?? fallback, () => process.exit(0), fallback);
 }
 
-// Input shapes vary across preview builds; probe the known variants.
+// --- Input adapters (official agy 1.5.17+ camelCase fields first) ---
+
+export function hookEventNameOf(input) {
+  return typeof input?.hookEventName === "string" ? input.hookEventName : "";
+}
+
+export function toolCallIdOf(input) {
+  return typeof input?.toolCall?.id === "string" ? input.toolCall.id : "";
+}
 
 export function commandLineOf(input) {
-  const args =
-    input?.toolCall?.args ?? input?.tool_call?.args ?? input?.args ?? {};
-  return (
-    args.CommandLine ?? args.commandLine ?? args.command ?? args.cmd ?? ""
-  );
+  const args = input?.toolCall?.args ?? input?.args ?? {};
+  return args.CommandLine ?? args.commandLine ?? args.command ?? args.cmd ?? "";
 }
 
 export function promptTextOf(input) {
   const direct =
+    input?.lastUserInput ??
     input?.prompt ??
     input?.userPrompt ??
-    input?.user_prompt ??
     input?.userMessage ??
     input?.message ??
     input?.input;
@@ -90,13 +204,6 @@ export function promptTextOf(input) {
       if (typeof steps[i]?.userMessage === "string") return steps[i].userMessage;
     }
   }
-  const messages = input?.messages;
-  if (Array.isArray(messages)) {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m?.role === "user" && typeof m.content === "string") return m.content;
-    }
-  }
   return "";
 }
 
@@ -104,26 +211,23 @@ export function transcriptPathOf(input) {
   return typeof input?.transcriptPath === "string" ? input.transcriptPath : "";
 }
 
+// Agent working directory (distinct from the hook process cwd, which is the
+// plugin directory containing hooks.json).
 export function cwdOf(input) {
+  if (typeof input?.cwd === "string" && input.cwd) return input.cwd;
   const ws = input?.workspacePaths;
   if (Array.isArray(ws) && typeof ws[0] === "string") return ws[0];
-  return (
-    input?.cwd ??
-    input?.workingDirectory ??
-    input?.working_directory ??
-    input?.workspace ??
-    process.cwd()
-  );
+  return input?.workingDirectory ?? input?.workspace ?? process.cwd();
 }
 
 export function editedFileOf(input) {
-  const args =
-    input?.toolCall?.args ?? input?.tool_call?.args ?? input?.args ?? {};
+  const args = input?.toolCall?.args ?? input?.args ?? {};
   return (
+    args.Path ??
     args.TargetFile ??
     args.FilePath ??
-    args.file_path ??
     args.filePath ??
+    args.file_path ??
     args.path ??
     ""
   );

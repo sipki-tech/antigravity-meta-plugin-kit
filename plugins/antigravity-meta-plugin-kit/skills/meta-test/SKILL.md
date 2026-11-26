@@ -1,65 +1,78 @@
 ---
 name: meta-test
-description: Test Antigravity plugins the zero-dependency way. Use when the user says "meta-test" or writes tests for hooks, scripts, or the payload of an Antigravity plugin.
+description: >-
+  Test Google Antigravity plugins with zero dependencies (node:test), hook e2e
+  wire tests, agy plugin validate --strict --json, and live agy -p smoke tests.
+  Use when the user says "meta-test" or writes tests for a plugin's hooks,
+  scripts, or payload. Don't use for shipping or publishing releases.
 ---
 
-# meta-test — the testing doctrine for plugins
+# meta-test — zero-dependency testing doctrine for Antigravity plugins
 
 ## Goal
 
-Cover a plugin with `node --test` suites (zero dependencies) that prove both
-the logic and the wire contract, so a hook or script regression never
-reaches a user's session.
+Cover a plugin with fast `node --test` suites (zero external dependencies) that
+prove pure logic, stdin/stdout wire contracts, structural compliance with
+`agy plugin validate --strict --json`, and fail-open behavior on bad input.
 
 ## Instructions
 
-1. Structure for testability: keep logic in exported functions inside `.mjs`
-   modules; the executable is a thin wrapper guarded by
-   `if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href)`.
-   Unit tests then import the function directly — no spawning.
-2. Hook e2e — test the wire contract, not just the logic:
+1. **Keep logic importable:** export pure decision functions from `.mjs` files
+   and guard executable entrypoints with `isMainModule(import.meta.url)` from
+   `./lib/io.mjs` (or `import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href`)
+   so scripts work reliably via symlinks and macOS `/tmp` -> `/private/tmp`.
+2. **Hook e2e wire tests:** spawn the real script with `spawnSync`:
    ```js
    const res = spawnSync(process.execPath, [script], {
-     input: JSON.stringify(input), encoding: "utf8", timeout: 10000,
+     input: rawStdin,
+     encoding: "utf8",
+     timeout: 10000,
    });
-   assert.equal(res.status, 0);           // ALWAYS, even on junk input
+   assert.equal(res.status, 0); // ALWAYS — even on junk/invalid/empty stdin
    const out = JSON.parse(res.stdout);
    ```
-   Feed it the real event shape, junk (`{"totally": "unexpected"}`), and
-   empty stdin; a fail-open hook answers allow/silent to all of them. Assert
-   the official response keys (`decision`/`reason`) — and the legacy pair
-   (`allow_tool`/`deny_reason`) while the template still ships both.
-3. Script/tool tests run against throwaway roots: `mkdtempSync(join(tmpdir(),
-   "x-"))` as the working dir — never the real `~/.gemini`. For any bundled
-   `scripts/` tool that supports `--dry-run` (e.g. a scaffolder), assert the
-   journal contract: `actions.length > 0` AND nothing exists on disk
-   afterwards.
-4. Structural validation: `agy plugin validate plugins/<name>` is the official
-   gate for skills/agents/mcpServers/root hooks.json — run it in CI when `agy`
-   is on PATH. The install itself is the CLI's job (`agy plugin install`), not
-   something the plugin tests.
-5. Wire it up: `"test": "node --test test/*.test.mjs"` in package.json; CI
-   runs it on ubuntu+macos × Node 20/22.
+   Test at minimum:
+   - real `agy 1.5.17` payload (camelCase `toolCall`, `lastUserInput`, `cwd`,
+     or for `Stop`: `terminationReason: "NO_TOOL_CALL"`, `fullyIdle: true`,
+     AND `executionNum: 1` / `continuationActive: true` loop-stop case);
+   - unexpected JSON (`{"totally": "unexpected"}`);
+   - malformed non-JSON (`"not json"`);
+   - empty stdin (`""`).
+3. **Temp roots for tools:** test any `scripts/` CLI against
+   `mkdtempSync(join(tmpdir(), "x-"))` (clean up in `finally`/`after()`);
+   assert `--dry-run` plans actions and writes zero files. When spawning a
+   nested `node --test`, delete `NODE_TEST_CONTEXT` and `NODE_OPTIONS` from
+   child `env` and assert `# pass [1-9]` in stdout.
+4. **Structural validation gate:** integrate `agy plugin validate --strict
+   --json <payload>` (skipping cleanly when `agy --version` is unavailable in
+   CI) and assert `status === 0`, `findings.length === 0`, and exact
+   `components.{skills,agents,rules,hooks,mcpServers,sidecars}` counts.
+5. **Run all local verification gates:**
+   ```bash
+   npm test
+   node "$KIT/scripts/meta-kit.mjs" lint --strict .
+   node "$KIT/scripts/meta-kit.mjs" doctor --workspace .
+   agy plugin validate --strict --json plugins/<name>
+   ```
 
 ## Definition of Done
 
-- Every hook has a unit test of its logic and an e2e spawn test including a
-  junk-input case.
-- Any `--dry-run` tool has a test proving no filesystem writes.
-- `npm test` is green locally and in the CI matrix.
+- Every hook has unit tests + e2e spawn tests covering real, junk, malformed,
+  and empty stdin.
+- `agy plugin validate --strict --json` integration test asserts `findings: []`
+  and exact component counts when `agy` is on PATH.
+- `npm test` uses a glob (`"node --test test/*.test.mjs"`, not a directory arg)
+  and is green on Node 20/22.
 
 ## Constraints
 
-- No test frameworks, no assertion libraries — `node:test` and
-  `node:assert/strict` only.
-- Tests must not depend on a real Antigravity install or network.
+- `node:test` and `node:assert/strict` only — zero test dependencies.
+- Never write to real `~/.gemini/` from automated tests.
 
 ## Rationalizations
 
-- "Hooks are too small to test" → an untested hook that exits non-zero takes
-  the whole session down; the e2e test is ten lines.
-- "Dry-run obviously works, it's the same code path" → that's exactly why it
-  breaks silently when someone adds a write outside the journal; keep the
-  assertion.
-- "I'll run my tools against my real config" → then a bug eats your own
-  `~/.gemini`; temp dirs are one `mkdtempSync` away.
+- "I unit-tested the helper, e2e spawn is redundant" -> unit tests miss
+  stdout pollution, broken imports, and stdin handling; the e2e test is 10 lines.
+- "`agy plugin validate` passes without `--strict`, good enough" -> warnings
+  indicate silently ignored fields or Marketplace rejections; always gate on
+  `--strict --json`.

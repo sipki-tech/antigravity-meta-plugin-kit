@@ -1,31 +1,21 @@
 {
   "name": "{{name}}",
+  "displayName": "{{displayName}}",
   "version": "0.1.0",
-  "description": "TODO: one line on what {{name}} does.",
+  "description": "TODO: one or two sentences on what {{displayName}} does and who it is for.",
+  "logo": "assets/logo.svg",
   "author": {
     "name": "TODO-your-name"
   },
+  "homepage": "https://github.com/TODO-owner/{{name}}",
   "repository": "https://github.com/TODO-owner/{{name}}",
   "license": "MIT",
   "keywords": [
     "antigravity",
     "plugin"
   ],
-  "skills": "./skills",
-  "rules": "./rules",
-  "hooks": "./hooks.json",
-  "interface": {
-    "displayName": "{{name}}",
-    "shortDescription": "TODO: short description shown in the plugin manager.",
-    "category": "Developer Tools",
-    "capabilities": [
-      "Skills",
-      "Rules",
-      "Hooks"
-    ],
-    "defaultPrompt": [
-      "{{name}}-example show me what you do"
-    ],
-    "brandColor": "#5B8DEF"
-  }
+  "category": "Developer Tools",
+  "suggestedPrompts": [
+    "{{name}}-example — show me what this plugin can do"
+  ]
 }

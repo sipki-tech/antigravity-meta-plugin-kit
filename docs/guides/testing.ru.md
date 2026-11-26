@@ -1,106 +1,135 @@
-# Тестирование: zero-dependency доктрина node --test
+# Тестирование плагинов
 
-*[English](testing.md) | Русский*
+[English](testing.md) | Русский
 
-Плагины работают внутри чужих сессий — непротестированный хук с ненулевым
-exit-кодом роняет сессию. Доктрина: **логика импортируема, обёртки тонкие,
-wire-контракты проверяются спауном**, ноль тест-фреймворков (только
-`node:test` + `node:assert/strict`).
+Надёжные плагины Antigravity проверяются на четырёх быстрых взаимодополняющих
+уровнях без сторонних тест-фреймворков (только встроенные `node:test` и
+`node:assert/strict`).
 
-## Структура ради тестируемости
+## Четыре слоя проверки
 
-Держите поведение в экспортируемых функциях; исполняемый вход — одна строка
-под гардом:
+1. **Юнит- и e2e-тесты (`npm test`)** — детерминированные офлайн-тесты на
+   `node:test` для протокола хуков, fail-open поведения и инвариантов манифеста.
+2. **Офлайн строгий линт (`lint.mjs --strict`)** — работает в CI без `agy`,
+   покрывая правила `agy plugin validate --strict` плюс runtime-слепые зоны.
+3. **Официальный валидатор (`agy plugin validate --strict --json`)** —
+   авторитетный структурный оракул Google локально (и в CI, если `agy` доступен).
+4. **Изолированный живой smoke-тест `agy -p`** — проверяет реальную загрузку
+   субагентов, срабатывание хуков и ограничения инструментов в одноразовом `/tmp`.
 
-```js
-export function checkCommand(cmd) { /* чистая логика */ }
+## 1. Юнит- и e2e-тесты на `node:test`
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href)
-  runHook((input) => checkCommand(commandLineOf(input)));
+Запуск всего набора:
+
+```bash
+npm test    # выполняет `node --test`
 ```
 
-Unit-тесты импортируют `checkCommand` напрямую — без спауна процессов,
-суб-миллисекундные тесты.
+Базовый шаблон включает два стартовых тест-файла (`--minimal` опускает
+`hook.test.mjs`, а `--with-cli` добавляет `test/cli.test.mjs`):
+- `test/manifest.test.mjs` — проверяет строгий JSON, semver `version`,
+  kebab-case `name`, наличие `logo` и валидный `hooks.json` (если присутствует).
+- `test/hook.test.mjs` — запускает реальный скрипт хука дочерним процессом,
+  подаёт camelCase protojson `agy 1.5.17` в `stdin` и проверяет код `0` +
+  валидный JSON на `stdout`.
 
-## E2e хука — тестируйте провод, не только логику
+### E2E-тестирование хуков `PreToolUse` и `Stop`
 
-```js
-const res = spawnSync(process.execPath, [script], {
-  input: JSON.stringify(input),
-  encoding: "utf8",
-  timeout: 10000,
-});
-assert.equal(res.status, 0);          // ВСЕГДА — даже на мусорном входе
-const out = JSON.parse(res.stdout);
-assert.equal(out.decision, "allow");  // официальный ключ
-assert.equal(out.allow_tool, true);   // legacy-ключ, пока шаблон эмитит оба
-```
-
-Минимум три входа: реальная форма события, мусор
-(`{"totally": "unexpected"}`) и пустой stdin. Fail-open хук отвечает
-allow/silent с exit 0 на все.
-
-## Тесты скриптов/инструментов — временные корни, никогда не ваш реальный home
-
-У native-only payload нет инсталлера, который надо тестировать; установка —
-это работа Antigravity CLI (`agy plugin install`). Тестируете вы любой
-инструмент из `scripts/`, всегда против выбрасываемого корня:
+Всегда покрывайте **четыре сценария** для каждого скрипта хука:
+1. **Разрешающий путь** — безопасный ввод возвращает `{"decision": "allow"}`
+   (или `{}` / `{"decision": ""}`).
+2. **Блокировка / модификация** — целевой триггер возвращает точный ожидаемый
+   ответ `deny`, `overwrite`, `injectSteps` или `continue`.
+3. **Битый или пустой stdin** — невалидный JSON или `{}` всё равно завершаются
+   с кодом `0` и fail-open ответом (без исключений и ненулевых кодов).
+4. **Защита от цикла (для `Stop`)** — хук обязан возвращать `{"decision": ""}`
+   при `terminationReason !== "NO_TOOL_CALL"`, при `continuationActive: true`
+   **и** при `continuationActive: false` с `executionNum: 1` (обход бага
+   `continuationActive` в `agy 1.5.17`).
 
 ```js
-const home = mkdtempSync(join(tmpdir(), "my-plugin-test-"));
-runTool({ home });                    // или { workspace: dir }
-```
+import { spawnSync } from "node:child_process";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 
-Для любого инструмента с `--dry-run` (например, скаффолдера) явно проверяйте
-контракт журнала:
+function runHook(script, stdin) {
+  const res = spawnSync(process.execPath, [script], {
+    input: typeof stdin === "string" ? stdin : JSON.stringify(stdin),
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.equal(res.status, 0, `hook exited ${res.status}: ${res.stderr}`);
+  return JSON.parse(res.stdout.trim());
+}
 
-```js
-const { actions } = runTool({ home, dryRun: true });
-assert.ok(actions.length > 0);                      // план существует
-assert.equal(existsSync(join(home, ".gemini")), false);  // ничего не записано
-```
+test("PreToolUse blocks dangerous command and fails open on garbage", () => {
+  const blocked = runHook("plugins/my-plugin/scripts/example-guard.mjs", {
+    hookEventName: "PreToolUse",
+    toolCall: { id: "1", name: "run_command", args: { CommandLine: "rm -rf /" } },
+  });
+  assert.equal(blocked.decision, "deny");
 
-Если инструмент мерджит MCP-конфиг, проверьте контракт: подсадите
-пользовательский сервер, выполните merge и prune, убедитесь, что запись
-пользователя выжила байт-в-байт.
-
-## E2e инструмента
-
-`spawnSync(process.execPath, [tool, ...args], { cwd })`; проверяйте код
-выхода, паттерны stdout и что пользовательские ошибки печатают дружелюбное
-сообщение без стектрейса.
-
-## Ловушки, в которые мы уже наступили за вас
-
-- **`node --test <dir>` ломается на Node 22** (Node 20 сканирует
-  директорию; 22 отвергает её). Используйте глоб в package.json:
-  `"test": "node --test test/*.test.mjs"`.
-- **Спаунутый `node --test` наследует `NODE_TEST_CONTEXT`**, когда родитель
-  сам тест, — ребёнок рапортует успех, ничего не запуская. Если ваш тест
-  спаунит другой test-runner, чистите env и проверяйте `# pass [1-9]` в
-  выводе.
-- С `pipefail` в CI конструкция `cmd | grep -q x` может маскировать или
-  вскрывать ошибки пайпа — предпочитайте ассерты в тест-сьюте shell-пайпам.
-
-## Интеграция с официальным валидатором
-
-Гейтуйтесь на `agy plugin validate` там, где CLI есть, и скипайте в
-остальных местах:
-
-```js
-const AGY = spawnSync("which", ["agy"], { encoding: "utf8" });
-test("agy validate", (t) => {
-  if (AGY.status !== 0) return t.skip("agy not on PATH");
-  // спаун agy plugin validate, срезать ANSI, проверить "hooks : N processed"
+  const failOpen = runHook("plugins/my-plugin/scripts/example-guard.mjs", "{not-json");
+  assert.equal(failOpen.decision, "allow");
 });
 ```
 
-## Чеклист
+## 2. Офлайн строгий линт (`lint.mjs --strict`)
 
-- [ ] каждый хук: unit-тест логики + e2e с реальным/мусорным/пустым stdin
-- [ ] dry-run-тест доказывает ноль записей на диск
-- [ ] MCP merge/prune покрыты с подсаженным пользовательским сервером
-- [ ] `"test": "node --test test/*.test.mjs"` (глоб, не директория)
-- [ ] CI-матрица гоняет это на ubuntu+macos × Node 20/22
+Запускайте линтер локально и в каждом GitHub Actions джобе:
 
-*См. также: [Хуки](hooks.ru.md) · [Релиз](shipping.ru.md)*
+```bash
+node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs --strict .
+node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs --strict --json .
+```
+
+В монорепозитории добавляйте `--all`, чтобы проверить все плагины в `plugins/`.
+Флаг `--strict` превращает предупреждения в exit code `1`, поэтому
+runtime-ловушки (`agents/*.toml`, неизвестные `tools:`, `grep_search`,
+`type: "prompt"`, отсутствие защиты цикла `Stop`, скобки `{a,b}` в `globs`,
+`/sse` в MCP) сразу ловятся в CI.
+
+## 3. Официальный валидатор (`agy plugin validate --strict --json`)
+
+Когда `agy` установлен локально, запускайте валидатор Google и требуйте пустой
+массив `findings`:
+
+```bash
+agy plugin validate --strict --json plugins/my-plugin
+```
+
+Эту проверку удобно обернуть в тест `node:test`, который аккуратно пропускается,
+если `agy` отсутствует в `PATH` (см. `test/agy-validate.test.mjs` в этом репо).
+
+## 4. Изолированный живой smoke-тест через `agy -p`
+
+Перед релизом плагина с субагентами или хуками прогоните его в чистой папке
+`/tmp`, не трогая `~/.gemini/config/plugins/`:
+
+```bash
+WS=$(mktemp -d /tmp/agy-smoke-XXXXXX)
+mkdir -p "$WS/.git" "$WS/.agents/plugins"
+cp -R plugins/my-plugin "$WS/.agents/plugins/my-plugin"
+
+agy -p "Confirm which subagents and skills from my-plugin are visible." \
+  --add-dir "$WS" \
+  --model gemini-3.8-flash-low \
+  --print-timeout 45s
+
+rm -rf "$WS"
+```
+
+Обязательно передавайте `--add-dir "$WS"` — неинтерактивный `agy -p` загружает
+`.agents/plugins/` только из явно подключённых директорий.
+
+## Проверка паритета документации
+
+Если в плагине есть двуязычная документация (EN + RU), держите компактный тест
+паритета (как `test/docs-parity.test.mjs` в этом репозитории), который
+проверяет:
+- Идентичную иерархию заголовков в каждой паре `.md` / `.ru.md`.
+- Ссылки внутри `.ru.md` ведут на русские `.ru.md` страницы.
+- Отсутствие устаревших и сломанных паттернов в доках, скиллах, агентах и
+  шаблонах.
+
+Далее: [Релиз](shipping.ru.md) · [Хуки жизненного цикла](hooks.ru.md) · [Исследование Antigravity](researching-antigravity.ru.md)

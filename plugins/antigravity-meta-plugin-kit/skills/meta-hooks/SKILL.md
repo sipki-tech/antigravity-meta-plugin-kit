@@ -1,87 +1,96 @@
 ---
 name: meta-hooks
-description: Author Antigravity plugin hooks with the official wire contracts and the fail-open law. Use when the user says "meta-hooks" or works on hooks.json, PreToolUse, PostToolUse, PreInvocation, PostInvocation, or Stop handlers.
+description: >-
+  Author Google Antigravity lifecycle hooks (`agy 1.5.17+`) with official wire
+  contracts, fail-open scripts, and runtime-trap guards. Use when the user says
+  "meta-hooks" or designs, edits, or debugs hooks.json, SessionStart,
+  PreToolUse, PostToolUse, PreInvocation, PostInvocation, or Stop hooks. Don't
+  use for rules, skills, or MCP configs.
 ---
 
-# meta-hooks — hooks that never break the host session
+# meta-hooks — fail-open Antigravity lifecycle hooks
 
 ## Goal
 
-Ship hooks that speak the official contracts (in-CLI docs, 2026-07) and are
-fail-open: any internal error resolves to the allow/silent response with
-exit 0.
+Ship root `hooks.json` handlers and fail-open Node.js scripts that match the
+verified `agy 1.5.17` camelCase protojson wire contracts and can never break
+the user's session.
 
 ## Instructions
 
-1. Put `hooks.json` at the **plugin root** (official location; the built-in
-   `agy plugin validate` looks only there). Top-level keys are **hook names**
-   — any string; using your plugin name is a sane collision-avoiding
-   convention, not a requirement. Never put an event name at the top level
-   (that's a Claude Code settings.json shape — it does not load). A named
-   hook supports `"enabled": false` for temporary disabling.
-2. Six events. `PreToolUse`/`PostToolUse` take matcher groups
-   `{"matcher": "run_command", "hooks": [...]}` (matcher: `""`/`"*"` = all
-   tools, otherwise regex); `SessionStart`/`PreInvocation`/`PostInvocation`/
-   `Stop` take flat handler lists. `SessionStart` is undocumented but
-   confirmed live on CLI 1.1.1 (probe 2026-07-12): fires once per
-   conversation start, input = the common fields only, respond `{}` (the
-   only verified response). Handler fields: `type`
-   (optional, only `"command"`), `command` (required; runs via `sh -c`, cwd =
-   the hooks.json directory — reference scripts as `node ./scripts/x.mjs`;
-   `${PLUGIN_ROOT}` expands to an EMPTY string on CLI 1.1.1 and kills the
-   hook), `timeout` (seconds; **default 30** — set 10–15 explicitly, hooks
-   block the agent loop synchronously).
-3. Wire contracts (stdin/stdout JSON, camelCase keys; common input:
-   `conversationId`, `workspacePaths[]`, `transcriptPath`,
-   `artifactDirectoryPath`, `modelName`):
-   - **PreToolUse** — input has `toolCall.name/args` (e.g. `CommandLine`).
-     Respond `{"decision": "allow"|"deny"|"ask"|"force_ask", "reason": "…",
-     "permissionOverrides": ["command(npm test)"]}`. Legacy
-     `allow_tool`/`deny_reason` still parses; emit both dialects during the
-     transition (unknown keys are ignored) — `denyResponse()` in the
-     scaffolded `io.mjs` does this.
-   - **PostToolUse** — input carries `error` when the tool failed. Respond
-     `{}` (do not try to inject here).
-   - **PreInvocation** — respond `{"injectSteps": [{"userMessage": "…"} |
-     {"ephemeralMessage": "…"} | {"toolCall": {...}}]}` or `{}` to stay
-     silent. `ephemeralMessage` = transient system message.
-   - **PostInvocation** — same input as PreInvocation; respond
-     `{"injectSteps": [...], "terminationBehavior": "force_continue" |
-     "terminate" | ""}` — the sanctioned keep-working mechanism.
-   - **Stop** — input: `terminationReason` (`model_stop` |
-     `max_steps_exceeded` | `error`), `fullyIdle`. Respond
-     `{"decision": "continue", "reason": "…"}` to block the stop; anything
-     else allows it.
-4. The fail-open law: route every script through `runHook(handler, fallback)`
-   (scaffolded `scripts/lib/io.mjs`) — catches everything, emits the fallback
-   on any error, exits 0. A throwing hook breaks the user's session. Extract
-   inputs via the adapter helpers (`commandLineOf`, `promptTextOf`, `cwdOf`,
-   `editedFileOf`) — field names drift across builds.
-5. Test both layers: unit-test the exported logic; e2e-test the script with
-   `spawnSync(process.execPath, [script], {input: JSON.stringify(...)})`
-   asserting exit 0 and the parsed response — including on junk input.
+1. **Delegate design when starting from scratch:** for complex new hooks,
+   invoke the `meta-hook-smith` subagent with the user's intent to draft the
+   event choice, `hooks.json`, script, and tests, then review before applying.
+2. **File shape (`<plugin>/hooks.json` — strict JSON only):**
+   - Must live at the **plugin root** (`hooks/hooks.json` is never loaded in
+     native plugins) and be **strict JSON** (no JSONC comments/trailing commas).
+   - Top-level keys are **named hook groups** (optional `"enabled": false`).
+     Never put an event name at the top level.
+   - **Six official events:**
+     - Grouped (`[{"matcher": "run_command", "hooks": [...]}]`): `PreToolUse`,
+       `PostToolUse` (matcher `""`/`"*"` = all tools, otherwise regex over
+       native tool names — never `Bash`/`Read`/`Edit`).
+     - Flat (`[handler, ...]`): `SessionStart`, `PreInvocation`,
+       `PostInvocation`, `Stop` (matcher groups on flat events hard-error).
+   - **Handler fields:** `type: "command"` (never `type: "prompt"` — passes
+     `agy --strict` but fails every tool call at runtime in `1.5.17`),
+     `command` (`sh -c`, cwd = plugin root -> use `node ./scripts/x.mjs`, never
+     `${PLUGIN_ROOT}`/`$PLUGIN_ROOT` in commands; `$PLUGIN_DATA` is available in
+     env for installed plugins), `timeout` (integer seconds; default 30 -> set
+     10–15 explicitly).
+3. **Verified wire contracts (`agy 1.5.17`, camelCase JSON):**
+   - **Common stdin (all 6 events, incl. `SessionStart`):** `conversationId`,
+     `workspacePaths`, `transcriptPath`, `artifactDirectoryPath`, `modelName`,
+     `lastUserInput`, `hookEventName`, `cwd` (agent working dir).
+   - **`SessionStart`:** output `{}` or `{"injectSteps": [...]}`.
+   - **`PreToolUse`:** input adds `toolCall: {id, name, args}`, `stepIdx`.
+     Output: `{"decision": "allow"|"deny"|"ask"|"force_ask", "reason"?,
+     "permissionOverrides"?, "overwrite"?}` (`overwrite` performs shallow
+     top-level merge into `toolCall.args`; `auto_approve` and
+     `deny_unless_prior_grant` also work in `1.5.17`).
+   - **`PostToolUse`:** input adds `toolCall`, `stepIdx`, `error`. Output `{}`.
+   - **`PreInvocation` / `PostInvocation`:** input adds `invocationNum`,
+     `initialNumSteps`. Output: `{"injectSteps": [...], "terminationBehavior":
+     ""|"terminate"|"force_continue"}` (`force_continue` is `PostInvocation`
+     only; `terminate` works on both). Valid `injectSteps` items:
+     - `{"systemMessage": {"systemMessage": "...", "metadata"?: {"user_markdown": "..."}}}`
+     - `{"userMessage": "..."}`
+     - `{"errorMessage": {"userMessage": "..."}}` (pair with `"terminate"`)
+     - **Never use** deprecated `ephemeralMessage` or `{"toolCall": ...}`
+       (crashes turn with exit 3 in `1.5.17`).
+   - **`Stop`:** input adds `executionNum`, `terminationReason`
+     (`NO_TOOL_CALL`, `MAX_INVOCATIONS`, `MAX_FORCED_INVOCATIONS`,
+     `MAX_TOKEN_BUDGET_EXCEEDED`, `ERROR`, `USER_CANCELED`,
+     `TERMINAL_STEP_TYPE`, `TERMINAL_CUSTOM_HOOK`, `INJECTED_RESPONSE`),
+     `error`, `fullyIdle`, `continuationActive`. Output
+     `{"decision": "continue", "reason": "..."}` or `{"decision": ""}`.
+     - **Critical `1.5.17` loop guard:** live probes proved `continuationActive`
+       can stay `false` when `executionNum > 0`. Always guard with
+       `isStopContinuation(input)` (`continuationActive || executionNum > 0`).
+4. **Fail-open law:** route every Node script through `runHook(handler, fallback)`
+   from `scripts/lib/io.mjs` (flushes stdout before exit 0; never writes logs
+   to stdout).
+5. **Validate & test:** unit-test exported logic, e2e `spawnSync` test with
+   real/junk/invalid/empty stdin, then run `lint.mjs --strict` and
+   `agy plugin validate --strict --json`.
 
 ## Definition of Done
 
-- Every hook script exits 0 and emits valid JSON on junk, empty, and
-  malformed stdin.
-- `lint` passes (named hooks, sane timeouts, scripts exist, fail-open) and
-  `agy plugin validate` reports `hooks: N processed`, not `skipped`.
-- Unit + e2e tests cover deny/allow (or inject/silent) paths.
+- Every hook exits 0 with valid JSON on junk, invalid, and empty stdin.
+- `lint.mjs --strict` and `agy plugin validate --strict --json` pass cleanly.
+- `Stop` hooks check `terminationReason === "NO_TOOL_CALL"` and
+  `isStopContinuation(input)`.
 
 ## Constraints
 
-- Only the single JSON response line goes to stdout.
-- Hooks run synchronously — never exceed 15s without written justification.
+- Only the single JSON response line goes to stdout; use stderr for diagnostics.
+- Keep `timeout` <= 15s unless justified (hooks block synchronously).
 
 ## Rationalizations
 
-- "My hook can just throw, the host handles it" → observed behavior: a
-  failing hook degrades or breaks the session; fail-open or don't ship.
-- "The docs are official now, I'll emit only the new response keys" → old
-  preview builds are still out there and a deny they can't parse becomes an
-  allow; emit both dialects until the legacy one dies (still parsed on
-  1.1.1).
-- "I'll namespace hooks by my plugin name because the loader needs it" → it
-  doesn't; it's just a convention. The real structural error is an event name
-  at the top level.
+- "`type: 'prompt'` passed `agy plugin validate --strict`" -> live probe on
+  `agy 1.5.17` proved it fails every tool call with `prompt hooks are not
+  currently supported`; use `type: "command"`.
+- "Checking `continuationActive` alone prevents Stop loops" -> live probe on
+  `agy 1.5.17` caught `continuationActive: false` at `executionNum: 1` and `2`;
+  always check `continuationActive || executionNum > 0`.

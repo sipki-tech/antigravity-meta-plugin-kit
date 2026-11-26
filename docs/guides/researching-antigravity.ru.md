@@ -1,140 +1,96 @@
-# Исследование внутренностей Antigravity: источники, техники, воспроизводимый пайплайн
+# Исследование Antigravity
 
-*[English](researching-antigravity.md) | Русский*
+[English](researching-antigravity.md) | Русский
 
-Как был добыт каждый факт из [internals.md](../internals.md) — по убыванию
-надёжности, с точными командами, чтобы исследование можно было повторить
-после любого обновления Antigravity. Это же — плейбук сабагента
-`meta-trap-scout`.
+Как проверять контракты плагинов напрямую на установленной сборке Google
+Antigravity после каждого обновления — без догадок и устаревших заметок.
 
-## Иерархия источников (от надёжного к слабому)
+## Зачем проверять эмпирически
 
-| # | Источник | Где | Что даёт |
-|---|---|---|---|
-| 1 | Встроенные официальные доки | `~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/` + `antigravity_guide/references/` | канонические спеки: plugins, skills, hooks, rules, MCP, реестры; обзоры app/cli/ide/sdk |
-| 2 | Строки бинарников | `~/.local/bin/agy`, Go-сайдкары `language_server` обоих приложений | встроенные доки, системные промпты, имена proto-типов, полный список событий |
-| 3 | Пробы валидатором | `agy plugin validate` на подсаженных payload | эмпирическое поведение компонентов (что считает, что скипает) |
-| 4 | Живые установки | `~/.gemini/config/plugins/*`, файлы настроек | реальные конвенции (включая плагины самого Google) |
-| 5 | Официальный веб | antigravity.google/docs, codelabs, agentskills.io, agents.md | нарративы, туториалы; менее точен, чем №1 |
-| 6 | Комьюнити-веб | блоги, agentpedia, reddit | наводки и слухи — **проверять по №1–3 прежде чем верить** |
+Antigravity быстро развивается: только с июля по ноябрь 2026 года платформа
+объединила загрузчики IDE и CLI (`Antigravity IDE 2.7.0` -> `agy --hub`),
+заменила `agents/*.toml` на Markdown `agents/*.md`, убрала плагинные
+`workflows/*.md`, добавила `SessionStart`, сменила enum причин `Stop` и
+выпустила `agy plugin validate --strict`.
 
-Показательный случай — теперь урок о дрейфе в двух актах: веб настаивал на
-существовании хука `SessionStart`; бинарники 1.0.16 это опровергали (в agy
-совпадения — TLS `ClientSessionStartReq`, в приложениях — JS-жесты
-`onPanSessionStart`). А в бинарнике 1.1.1 выросло настоящее proto-семейство
-`SessionStartHookArgs`/`SessionStartHookResult` (2026-07-11). Слух в итоге
-оказался прав — но только улики рангов 1–3 могли сказать, *когда*, и
-wire-контракт всё ещё ждёт живой пробы. Ранг 6 никогда не перевешивает
-ранг 2 — он лишь подшивает наводки.
+Каждое правило в [docs/internals.md](../internals.md) и `scripts/lib/lint.mjs`
+помечено тегом источника (`[OFFICIAL 2026-11]`, `[OBSERVED 2026-11]`, `[MEDIUM]`)
+и подкреплено воспроизводимой проверкой.
 
-## Источник 1 — встроенные доки
+## Авторитетные источники на диске
 
-Найдены через `agy changelog`, упомянувший «`antigravity_guide` builtin
-skill» и «builtin customizations directory»:
+После любого обновления Antigravity проверяйте эти четыре локальных источника:
 
-```bash
-find ~/.gemini/antigravity-cli/builtin -type f
-# agy-customizations/docs/{plugins,skills,hooks,rules,mcp_servers,json_configs}.md
-# antigravity_guide/references/{app,cli,ide,sdk}.md
-```
+1. **Точная версия CLI:**
+   ```bash
+   agy --version
+   ```
+   (`agy --version` всегда точен, тогда как `agy changelog` может отставать.)
+2. **Встроенная документация Google**, поставляемая с CLI:
+   `~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/`
+   Содержит официальные спецификации манифеста, правил, скиллов, агентов, хуков,
+   MCP, сайдкаров и приоритетов поиска.
+3. **Два Go-бинарника движка:**
+   - `~/.local/bin/agy` (движок CLI + валидатор + `--hub`)
+   - `/Applications/Antigravity.app/Contents/Resources/bin/language_server`
+     (движок Antigravity App)
+   Сравнение строк и встроенных protobuf-дескрипторов (`exa.hooks_pb`) позволяет
+   убедиться, что CLI и App идут синхронно.
+4. **Живой `agy plugin validate --strict --json` + изолированные пробы `agy -p`:**
+   Валидатор ловит изменения схемы, а изолированные запуски в `/tmp` выявляют
+   runtime-поведение, невидимое валидатору (`PromptHook`, `Stop`
+   `continuationActive`, маппинг тиров `model:` и `tools:` субагентов).
 
-Директория обновляется вместе с CLI (`.checksum`). Снимайте снапшот до
-обновления, диффайте после:
+## Автоматический радар дрейфа (`probe.mjs`)
 
-```bash
-cp -R ~/.gemini/antigravity-cli/builtin /tmp/builtin-<версия>
-agy update
-diff -r /tmp/builtin-* ~/.gemini/antigravity-cli/builtin
-```
-
-## Источник 2 — строки бинарников
-
-Движок несут три Go-бинарника (Electron-овский `app.asar` — лаунчер на
-2 МБ; сам UI вшит в Go-сайдкар):
+Вместо ручных проверок запускайте исполняемый радар дрейфа из кита:
 
 ```bash
-strings -n 5 ~/.local/bin/agy > agy.txt                     # ~490 тыс. строк
-strings -n 6 "/Applications/Antigravity.app/Contents/Resources/bin/language_server" > app20.txt
-strings -n 6 "/Applications/Antigravity IDE.app/Contents/Resources/app/extensions/antigravity/bin/language_server_macos_arm" > ide.txt
+# Быстро (~2с, без вызовов LLM): проверяет 9 контрактов валидатора в /tmp
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs probe --fast
+
+# Машиночитаемый JSON
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs probe --fast --json
+
+# Живые пробы (opt-in): дополнительно прогоняет 4 изолированных `agy -p` (хуки + субагенты) в /tmp
+node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs probe --live
 ```
 
-Сработавшие техники:
+`probe.mjs` никогда не трогает `~/.gemini/` и ваш проект — все синтетические
+фикстуры создаются во временной папке и удаляются по завершении. Код `0`
+означает `CONFIRMED` по всем контрактам; код `1` точно указывает ID пробы с
+`DRIFT`.
 
-- **Сначала счётчики, потом контексты**: `grep -c pattern` по всем дампам,
-  чтобы понять, где что живёт; затем `grep -n -B1 -A1` или
-  `grep -o ".\{80\}pattern.\{120\}"` (Go-таблицы строк склеивают тысячи
-  литералов в одну строку — голый `grep -n` печатает мегабайты).
-- **Извлечение встроенных доков**: markdown внутри бинарника выживает как
-  чистый многострочный текст — найдите заголовок (`# Lifecycle Hooks`) и
-  `sed -n 'START,ENDp'`. Так был добыт полный официальный контракт хуков
-  раньше, чем он появился в вебе.
-- **Proto-имена = инвентарь API**:
-  `grep -o "[A-Za-z]*Hook\(Args\|Result\)" | sort -u` перечисляет реальный
-  набор событий; наличие `GetSkillSlashCommands` при отсутствии
-  `GetAgentSlashCommands` доказало, что агенты не становятся slash-командами.
-- **Системные промпты ищутся**: «You are a subagent of Antigravity»,
-  таблица рутин оркестратора owl и шаблон ростера плагинов («You can use
-  them just like regular skills or subagents») — всё из строк.
-- **Добивайте ложные срабатывания**: каждому хиту — чтение контекста.
-  `SessionStart` (TLS/JS-шум) и `owl` (подстрока тысяч слов) на уровне
-  счётчиков выглядели настоящими.
+Внутри Antigravity можно также вызвать `/meta-scout` — он прогонит `probe.mjs`
+и делегирует углублённый анализ субагенту `meta-trap-scout` в песочнице.
 
-Ловушка версий: **`agy changelog` отстаёт от бинарника** (установка 1.0.16
-показывает сверху 1.0.10). Авторитетна строка «current version» из
-`agy update`.
+## Повторяемый пайплайн после обновления
 
-## Источник 3 — пробы валидатором
+Проходите эти пять шагов после каждого апдейта `agy` или `Antigravity.app`:
 
-`agy plugin validate [path]` (найден через `agy plugin --help`) —
-бесплатный оракул: сгенерируйте payload, подсадите вариацию, прочитайте,
-что он посчитал.
+1. Зафиксируйте версии: `agy --version` и `CFBundleShortVersionString` в
+   `Info.plist` у `Antigravity.app` / `Antigravity IDE`.
+2. Запустите `node plugins/antigravity-meta-plugin-kit/scripts/probe.mjs --fast`.
+3. Сверьте `~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/`
+   с [docs/internals.md](../internals.md) на предмет новых ключей манифеста,
+   событий хуков, полей агентов или проверок валидатора.
+4. Запустите `probe.mjs --live`, если в релизе менялись хуки, тиры субагентов
+   или `PromptHook`.
+5. Проверьте, не исправлен ли какой-то известный runtime-баг (например, заработал
+   ли `PromptHook` или стал ли `Stop.continuationActive` равным `true` на
+   `executionNum: 1`).
 
-```bash
-node plugins/antigravity-meta-plugin-kit/scripts/create.mjs probe && cd probe/plugins/probe
-mkdir commands && printf -- "---\ndescription: t\n---\nbody\n" > commands/x.md
-TERM=dumb agy plugin validate . | sed 's/\x1b\[[0-9;]*m//g'
-# → "commands : 1 processed (converted to skills)"  ← открытие
-```
+## Обновление `docs/internals.md` и `lint.mjs`
 
-Так установлены: `commands/` (стиль Claude Code, конвертируются в скиллы),
-markdown-сабагенты (`agents/*.md`), поиск hooks.json только в корне,
-«пустой mcpServers = skipped». Срезайте ANSI; `TERM=dumb`.
+Когда проба сообщает `DRIFT`:
 
-## Источник 4 — живые установки
+1. Обновите [docs/internals.md](../internals.md) с новой датой
+   `[OFFICIAL YYYY-MM]` / `[OBSERVED YYYY-MM]` и перенесите устаревшие тезисы в
+   раздел **Refuted & superseded assumptions**.
+2. Синхронизируйте `scripts/lib/lint/*.mjs`, канонический шаблон SDK хуков
+   (`scripts/templates/plugin/plugins/__name__/scripts/lib/io.mjs`) и ожидания в
+   `scripts/probe.mjs` с подтверждённым поведением рантайма.
+3. Отразите пользовательские изменения в обеих версиях гайдов (EN и RU) и
+   запустите `npm test` (паритет проверяется через `test/docs-parity.test.mjs`).
 
-```bash
-ls ~/.gemini/config/plugins/          # плагины самого Google = конвенции
-cat ~/.gemini/config/plugins/flutter/plugin.json   # {"name":"flutter"} — минимальный мир
-```
-
-Плагины Google доказали модель «двух миров» и вскрыли
-`gemini-extension.json` (артефакт совместимости `agy plugin import gemini`,
-по источнику 2).
-
-## Воспроизводимый пайплайн (после любого обновления Antigravity)
-
-1. `agy update` — зафиксировать реальную версию.
-2. Продиффать встроенные доки со своим снапшотом (источник 1).
-3. Передампить три бинарника; прогнать чеклист grep'ов: имена событий,
-   ключи `injectSteps`, `installed_version`, `decision`/`allow_tool`,
-   marketplace, любые новые существительные-компоненты; сравнить счётчики
-   со старыми дампами.
-4. Перегнать пробы валидатором: свой payload, эталонный, пробный с
-   экзотикой — следить за новыми строками в выводе.
-5. `npm test` в этом репозитории — dogfood- и agy-validate-наборы
-   закрепляют ожидаемое состояние и падают при дрейфе.
-6. Обновить [internals.md](../internals.md) с новыми датами, перекалибровать
-   линтер, явно записать опровергнутые слухи.
-
-Либо, с установленным плагином: `/meta-scout` — сабагент прогоняет этот
-плейбук и репортит дрейф с провенансом.
-
-## Этика и рамки
-
-Всё выше — чтение бинарников и конфигов, уже установленных на вашей
-машине, ради интероперабельности: без сетевых зондирований, без кредов,
-без обхода защит. Уважайте условия preview; настоящие баги репортите
-Google, а не полагайтесь на них.
-
-*См. также: [реестр ловушек](../internals.md) ·
-[Работа с плагином](using-the-plugin.ru.md)*
+Далее: [Внутренности](../internals.md) · [Тестирование](testing.ru.md) · [Работа с плагином](using-the-plugin.ru.md)

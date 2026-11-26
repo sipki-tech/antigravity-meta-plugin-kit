@@ -1,14 +1,20 @@
 {
   "name": "@sipki-tech/antigravity-meta-plugin-kit",
-  "version": "0.5.0",
-  "description": "Scaffold and lint Antigravity plugins — encodes the loader's undocumented traps so authors don't rediscover them.",
+  "version": "0.6.0",
+  "description": "Scaffold, lint, probe, and ship Google Antigravity plugins (agy 1.5.17+) — encodes official contracts and empirical runtime traps.",
   "private": true,
   "type": "module",
+  "bin": {
+    "meta-kit": "./plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs"
+  },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "lint": "node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs lint --strict .",
+    "probe": "node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs probe --fast",
+    "doctor": "node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs doctor"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "repository": "https://github.com/sipki-tech/antigravity-meta-plugin-kit",
   "keywords": [
@@ -17,6 +23,7 @@
     "scaffold",
     "lint",
     "skills",
+    "subagents",
     "hooks"
   ],
   "author": "sipki-tech",

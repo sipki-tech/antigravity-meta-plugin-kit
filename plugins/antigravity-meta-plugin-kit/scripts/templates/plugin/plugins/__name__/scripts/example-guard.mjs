@@ -1,14 +1,19 @@
-// Example fail-open PreToolUse guard: denies obviously destructive commands.
-// Keep the logic in an exported function so tests can import it directly; the
-// executable wrapper at the bottom routes it through runHook (fail-open: any
-// internal error resolves to allow, exit 0 — a hook must never break the
-// host session).
-import { pathToFileURL } from "node:url";
-import { runHook, commandLineOf, denyResponse, ALLOW } from "./lib/io.mjs";
+#!/usr/bin/env node
+// Example fail-open PreToolUse guard: denies obviously destructive shell
+// commands. Keep pure logic in an exported function so unit tests can import
+// it directly; the guarded wrapper routes stdin/stdout through runHook() so
+// any internal error resolves to allow with exit 0.
+import {
+  ALLOW,
+  commandLineOf,
+  denyResponse,
+  isMainModule,
+  runHook,
+} from "./lib/io.mjs";
 
 const DESTRUCTIVE = [
-  /\brm\s+(-[a-z]*[rf][a-z]*\s+)+(\/|~)(\s|$)/i,
-  /\bgit\s+push\s+\S*\s*--force\b/,
+  /\brm\s+(?:-(?:[a-z]*[rf][a-z]*|-recursive|-force)\s+)+(?:\/+\*?|~(?:\/+\*?)?|\$HOME(?:\/+\*?)?|\*)(?:\s|$)/i,
+  /\bgit\s+push\b[^\n]*\s(?:--force(?!-with-lease)\b|-f\b)/,
 ];
 
 export function checkCommand(cmd) {
@@ -23,5 +28,6 @@ export function checkCommand(cmd) {
   return ALLOW;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href)
+if (isMainModule(import.meta.url)) {
   runHook((input) => checkCommand(commandLineOf(input)));
+}

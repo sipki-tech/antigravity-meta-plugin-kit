@@ -18,35 +18,36 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: Unit tests
+      - name: Unit, e2e, and docs-parity tests
         run: npm test
-      - name: Self-lint — the kit's own payload passes its own linter
-        run: node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs .
-      - name: Smoke — create --dry-run writes nothing
+      - name: Self-lint (strict) via meta-kit CLI
+        run: node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs lint --strict .
+      - name: Doctor smoke (isolated empty home)
+        run: |
+          tmp="$(mktemp -d)"
+          node plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs doctor --home "$tmp" --workspace "$GITHUB_WORKSPACE" --json > /dev/null
+      - name: Smoke — create --dry-run plans actions and writes nothing
         run: |
           tmp="$(mktemp -d)"
           cd "$tmp"
-          node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/create.mjs" demo-plugin --dry-run | grep -q "would create"
+          out="$(node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs" create demo-plugin --dry-run)"
+          printf '%s\n' "$out" | grep -q "would create"
           test ! -e demo-plugin
-      - name: Smoke — create a native-only plugin, lint it, run its tests
+      - name: Smoke — scaffold all profiles, lint --strict, and run generated tests
         run: |
           tmp="$(mktemp -d)"
-          cd "$tmp"
-          node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/create.mjs" demo-plugin
-          node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/lint.mjs" demo-plugin
-          test ! -e demo-plugin/bin -a ! -e demo-plugin/installer   # native-only: no installer machinery
-          cd demo-plugin
-          npm test
-
-  dogfood:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Lint the reference antigravity-kit payload
-        run: |
-          ref="$(mktemp -d)"
-          git clone --depth 1 https://github.com/sipki-tech/antigravity-kit "$ref/antigravity-kit"
-          node plugins/antigravity-meta-plugin-kit/scripts/lint.mjs "$ref/antigravity-kit/plugins/antigravity-kit"
+          for spec in \
+            "p-default:" \
+            "p-minimal:--minimal" \
+            "p-agents:--with-agents" \
+            "p-sidecar:--with-sidecar" \
+            "p-cli:--with-cli" \
+            "p-minimal-cli:--minimal --with-cli" \
+            "p-dot:--manifest-layout dot-antigravity --with-agents --with-cli"; do
+            name="${spec%%:*}"
+            flags="${spec#*:}"
+            # shellcheck disable=SC2086
+            node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs" create "$name" --dir "$tmp" $flags
+            node "$GITHUB_WORKSPACE/plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs" lint --strict "$tmp/$name"
+            (cd "$tmp/$name" && npm test)
+          done

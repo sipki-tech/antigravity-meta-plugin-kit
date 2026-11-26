@@ -18,12 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: Unit tests
+      - name: Unit & e2e tests
         run: npm test
-      - name: Structural validation (agy plugin validate, when available)
+      - name: Structural validation (agy plugin validate --strict, when available)
         run: |
           if command -v agy >/dev/null 2>&1; then
-            agy plugin validate plugins/{{name}}
+            agy plugin validate --strict --json plugins/{{name}}
           else
-            echo "agy not on PATH — skipping 'agy plugin validate'. Install the Antigravity CLI to enable it."
+            echo "agy not on PATH — skipping 'agy plugin validate'. Install the Antigravity CLI or run antigravity-meta-plugin-kit's lint.mjs --strict in CI."
           fi

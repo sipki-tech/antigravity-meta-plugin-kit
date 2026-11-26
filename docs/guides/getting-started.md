@@ -1,99 +1,102 @@
-# Getting started: from zero to an installed Antigravity plugin
+# Getting started
 
-*English | [Русский](getting-started.ru.md)*
+English | [Русский](getting-started.ru.md)
 
-This guide walks the full path: scaffold → lint → test → install → confirm.
-Time budget: about five minutes.
+Go from zero to a validated, tested Google Antigravity (`agy 1.5.17+`) plugin in
+under five minutes.
 
-## 1. Scaffold
+## Prerequisites
 
-```bash
-S="$(pwd)/plugins/antigravity-meta-plugin-kit/scripts"   # absolute — survives the cd below
-node "$S/create.mjs" my-plugin
-cd my-plugin
-```
+- **Node.js >= 20** (zero npm dependencies are required).
+- **Google Antigravity CLI (`agy 1.5.17+`)** on `PATH` for local validation and
+  installation (`agy --version`).
 
-Names are kebab-case (`my-plugin`, not `My_Plugin`). Add `--dry-run` to see
-the exact file plan without writing, `--dir <parent>` to scaffold elsewhere,
-`--with-agents` to include an example subagent.
+## 1. Install in Antigravity and set up `meta-kit`
 
-You get a complete **native-only** repository: the payload under
-`plugins/my-plugin/`, tests, and CI — installed via `agy plugin install`, with
-no bundled installer. Everything is wired so that the gates below pass
-immediately — your job is to replace the examples with real behavior,
-re-running the gates as you go.
-
-## 2. Lint
+Install the kit globally — no `git clone` or `npm install` needed:
 
 ```bash
-node "$S/lint.mjs" .
+agy plugin install https://github.com/sipki-tech/antigravity-meta-plugin-kit
 ```
 
-`lint` accepts a payload dir or a scaffolded repo root. It prints named
-checks (`ok /FAIL name (note)`), then warnings, then notes, and exits 1 on
-any FAIL. Every check maps to a real loader failure mode — see the
-[trap registry](../internals.md).
-
-Also run the official structural validator (ships with the `agy` CLI):
+Add a shell alias (in `~/.zshrc` or `~/.bashrc`) so you can run `meta-kit` from
+any directory:
 
 ```bash
-agy plugin validate plugins/my-plugin
+alias meta-kit='node ~/.gemini/config/plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs'
 ```
 
-The two cover different ground: `agy` checks CLI-world structure
-(skills/agents/commands/mcpServers/root hooks.json); `lint` checks IDE-world
-manifest traps, hook content, rules, workflows, and style.
+*(Working from a git checkout of this repo instead? Use
+`alias meta-kit="node $(pwd)/plugins/antigravity-meta-plugin-kit/scripts/meta-kit.mjs"`.)*
 
-## 3. Test
+## 2. Scaffold a native Antigravity plugin
 
 ```bash
-npm test
+meta-kit create my-plugin
 ```
 
-The scaffolded suite covers the example hook (unit + e2e over the real
-stdin/stdout wire) and any bundled `scripts/` tool (dry-run writes nothing).
-Extend it as you add behavior — the [testing guide](testing.md) explains the
-doctrine.
+This creates `./my-plugin/` with:
 
-## 4. Install
+- `plugins/my-plugin/plugin.json` — strict flat `agy 1.5.17+` manifest with
+  `displayName`, `logo`, and `suggestedPrompts`.
+- `plugins/my-plugin/README.md` + `assets/logo.svg` — Marketplace-ready readme
+  and 256×256 SVG with ~10% transparent padding (0 validator notes).
+- `plugins/my-plugin/rules/AGENTS.md` — lean always-on rule (no frontmatter).
+- `plugins/my-plugin/hooks.json` + `scripts/example-guard.mjs` +
+  `scripts/lib/io.mjs` — symlink-safe, fail-open `PreToolUse` guard.
+- `plugins/my-plugin/skills/my-plugin-example/SKILL.md` +
+  `resources/prompt-template.md`.
+- `plugins/my-plugin/mcp_config.json` — clean JSONC template.
+- `test/hook.test.mjs`, `test/manifest.test.mjs`, `package.json`, `README.md`,
+  and `.github/workflows/ci.yml`.
 
-```bash
-# install the local payload dir straight through the Antigravity CLI
-agy plugin install plugins/my-plugin
-```
+### Choose a scaffold profile
 
-The CLI copies the payload into `~/.gemini/config/plugins/my-plugin/`,
-registers it in `~/.gemini/config/import_manifest.json`, and resolves any
-MCP config the plugin ships. Restart Antigravity to pick the plugin up. To
-install from GitHub instead, pass the repo URL:
-`agy plugin install https://github.com/you/my-plugin`.
+Combine flags to match your plugin's exact surface:
 
-## 5. Confirm
-
-```bash
-agy plugin list                 # the plugin should be listed
-```
-
-`agy plugin list` shows CLI-installed plugins — the fastest confirmation the
-install registered. A live session that fires the plugin's skills is the final
-proof; `agy plugin uninstall my-plugin` removes it cleanly.
-
-## Where to go next
-
-| You want to… | Guide |
+| What you are building | Command |
 |---|---|
-| understand plugin.json and install paths | [Plugin manifest & layouts](plugin-manifest.md) |
-| gate/inject/keep-alive with hooks | [Hooks](hooks.md) |
-| write skills that actually fire | [Skills](skills.md) |
-| add subagents | [Subagents](agents.md) |
-| add rules or /slash-command workflows | [Rules & workflows](rules-workflows.md) |
-| bundle MCP servers | [MCP servers](mcp.md) |
-| release it | [Shipping](shipping.md) |
+| Standard plugin (hooks + MCP + skill + rule) | `meta-kit create my-plugin` |
+| Minimal skill/rule-only plugin | `meta-kit create my-minimal --minimal` |
+| Google Workspace pattern (bundled CLI + `auth.json` + skill, zero MCP) | `meta-kit create my-cli --minimal --with-cli` |
+| Custom Markdown subagent (`agents/*.md`) + `/<name>-help` slash wrapper | `meta-kit create my-agents --with-agents` |
+| Background worker sidecar (`sidecars/<name>-worker/sidecar.json`) | `meta-kit create my-worker --with-sidecar` |
+| Manifest under `.antigravity-plugin/plugin.json` (components stay at root) | `meta-kit create my-dot --manifest-layout dot-antigravity` |
+| Dry-run preview without writing files | `meta-kit create my-preview --with-agents --with-cli --dry-run` |
 
-## Checklist
+## 3. Run tests, offline lint, and the official validator
 
-- [ ] `lint` — zero FAIL, zero warnings
-- [ ] `agy plugin validate` — `[ok]`, hooks processed
-- [ ] `npm test` — green
-- [ ] real `agy plugin install` + `agy plugin list` — plugin listed
-- [ ] examples replaced with real behavior (no TODO left in plugin.json)
+```bash
+cd my-plugin
+npm test                                               # node:test suite (green out of the box)
+meta-kit lint --strict .                               # offline strict lint + runtime blind spots
+agy plugin validate --strict --json plugins/my-plugin  # Google's authoritative validator (findings: [])
+```
+
+Both validators should pass with **0 errors and 0 warnings**.
+
+## 4. Diagnose your environment and install locally
+
+Run a read-only check before and after installing to verify there are no plugin
+or skill name collisions in `~/.gemini/config/plugins/`:
+
+```bash
+meta-kit doctor --workspace .
+agy plugin install plugins/my-plugin
+agy plugin list --json
+```
+
+For workspace-only testing without touching `~/.gemini/config/plugins/`, copy
+`plugins/my-plugin` into `<project>/.agents/plugins/my-plugin` and run:
+
+```bash
+agy -p "List the skills available from my-plugin." --add-dir <project>
+```
+
+## Next steps
+
+- Ready-to-use Antigravity prompts for skills and subagents:
+  [Using the plugin](using-the-plugin.md)
+- Author custom subagents cleanly: [Subagents](agents.md)
+- Add lifecycle hooks safely: [Lifecycle hooks](hooks.md)
+- Prepare for GitHub and Marketplace release: [Shipping](shipping.md)

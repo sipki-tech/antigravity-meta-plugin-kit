@@ -1,71 +1,64 @@
 ---
 name: meta-skills
-description: Write SKILL.md files that actually route and read well. Use when the user says "meta-skills" or authors, reviews, or fixes a skill for an Antigravity plugin (also portable to Claude Code and Codex).
+description: >-
+  Author Google Antigravity SKILL.md files that route accurately and stay under
+  the 24 KB body cap. Use when the user says "meta-skills" or writes, reviews,
+  or fixes a skill or slash-only skill wrapper. Don't use for rules or agents.
 ---
 
-# meta-skills — skills that route, then deliver
+# meta-skills — skills that route cleanly and deliver
 
 ## Goal
 
-Author SKILL.md files whose descriptions reliably trigger and whose bodies
-give an agent an executable playbook, not an essay.
+Author `skills/<name>/SKILL.md` runbooks whose descriptions reliably trigger on
+real user prompts, avoid false positives, and respect Antigravity's 24,000-byte
+body truncation limit.
 
 ## Instructions
 
-1. Frontmatter discipline: exactly `name` and `description`. `name` must
-   equal the directory name and be lowercase-hyphenated (official style).
-   `description` is the ONLY text the router sees (skills load their body on
-   activation — progressive disclosure); write it in the third person, state
-   WHAT the skill does and WHEN to use it, and include the trigger phrase a
-   user would actually type, ideally quoted:
-   `Use when the user says "my-plugin-do-x" or asks to ...`.
-2. Body structure (the reference convention):
-   - `## Goal` — one paragraph: what outcome this skill produces.
-   - `## Instructions` — numbered, concrete steps; commands and file paths,
-     not aspirations.
-   - `## Definition of Done` — verifiable checks, each answerable by a
-     command or an inspectable artifact.
-   - `## Constraints` — what NOT to do.
-   - `## Rationalizations` — 2–3 "excuse → counter" pairs that pre-empt the
-     shortcuts an agent will be tempted to take.
-3. Token hygiene: a skill is loaded into a live session. Keep it under ~80
-   lines; cut anything the agent can derive; prefer one sharp example over
-   three redundant ones. Bulky material goes to the official subdirs, linked
-   relatively: `scripts/` (executable helpers), `examples/`, `resources/`
-   (templates/assets), `references/` (long docs the agent reads on demand).
-4. XML sectioning: SKILL.md itself stays plain markdown. Reach for XML-style
-   tags (`<role>`, `<constraints>`, `<context>`, `<task>`, `<output_format>`)
-   only inside prompt TEMPLATES you ship in `resources/` — Google's
-   recommended shape for long, multi-part structured prompts with
-   placeholders (see the scaffolded `resources/prompt-template.md`).
-5. Placement: in an Antigravity plugin, skills live inside the plugin dir
-   (`plugins/<name>/skills/<skill>/SKILL.md`); they also surface as
-   /slash-commands automatically. The same format is portable — copy the
-   skill dir to `~/.claude/skills/` (Claude Code) or `~/.codex/skills/`
-   (Codex).
-6. Validate with this kit's linter, bundled in this plugin's `scripts/`:
-   `node "$KIT/scripts/lint.mjs" .` (where `$KIT` is this plugin's install
-   dir, e.g. `~/.gemini/config/plugins/antigravity-meta-plugin-kit`) —
-   frontmatter and trigger checks are enforced.
+1. **Directory shape:** `skills/<kebab-name>/SKILL.md`, plus optional
+   `scripts/`, `examples/`, `resources/`, `references/` linked relatively (1
+   level deep).
+2. **YAML frontmatter (`agy 1.5.17+` supports multiline `>-` / `|`):**
+   - `name` (required): strict lowercase kebab-case matching the directory name.
+   - `description` (required): the **only** text injected before activation.
+     State in third person: **what** it does, **when** to use it (with concrete
+     trigger phrasing), and **when NOT to use it** (`Don't use for...`). Quote
+     any value containing `": "` or use `description: >-`.
+   - Optional Antigravity control flags:
+     - `disable-model-invocation: true` — makes the skill an explicit
+       `/<name>` slash command only (replaces deprecated `workflows/*.md`!).
+     - `disable-slash-command: true` — hides the skill from `/` autocomplete.
+     - `metadata.icon` / `metadata.logo` — optional UI visuals.
+3. **Body structure:**
+   - `## Goal` — one concise paragraph of the outcome.
+   - `## Instructions` — numbered, concrete commands and paths.
+   - `## Definition of Done` — objectively verifiable checks.
+   - `## Constraints` — hard guardrails.
+   - `## Rationalizations` — 2–3 "excuse -> counter" pairs pre-empting shortcuts.
+4. **Token & size discipline:** Antigravity silently **truncates `SKILL.md`
+   bodies above 24,000 bytes** (frontmatter excluded; even several official
+   Google plugins hit this warning). Keep `SKILL.md` under ~100 lines (~4–8 KB)
+   and move heavy reference material into `references/` or `resources/`.
+5. **Validate:** run `node "$KIT/scripts/lint.mjs" --strict .` and
+   `agy plugin validate --strict --json <payload>`.
 
 ## Definition of Done
 
-- `lint` passes for the skill (frontmatter valid, trigger present).
-- Reading only the description, a stranger can guess when the skill fires.
-- Every Definition-of-Done item in the skill itself is objectively checkable.
+- Both validators pass with 0 warnings.
+- Body size is well below 24,000 bytes.
+- Reading only `description`, both positive triggers and negative boundaries
+  are unambiguous.
 
 ## Constraints
 
-- One skill = one job; split unrelated playbooks.
-- No YAML beyond flat `key: value` in frontmatter — parsers downstream are
-  deliberately minimal.
+- One skill = one focused job; split unrelated playbooks.
+- Never put Markdown `workflows/` or `commands/` inside a plugin — use skills.
 
 ## Rationalizations
 
-- "The description is just metadata" → it is the routing surface; a skill
-  with a vague description never fires and silently wastes payload tokens.
-- "More detail makes the skill better" → past the playbook, every line
-  dilutes attention in the session that loads it; cut until it hurts.
-- "I'll write the Rationalizations section later" → it exists to catch the
-  exact corner you're about to cut now; write it while the temptation is
-  fresh.
+- "I'll inline the whole reference manual in `SKILL.md`" -> past 24,000 bytes
+  Antigravity truncates the tail silently, and long bodies bloat every session
+  that activates the skill; link `references/*.md` instead.
+- "Positive trigger wording is enough" -> without `Don't use for...`, adjacent
+  skills steal turns from each other.

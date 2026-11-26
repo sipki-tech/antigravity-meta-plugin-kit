@@ -7,8 +7,7 @@
           {
             "type": "command",
             "command": "node ./scripts/example-guard.mjs",
-            "timeout": 10,
-            "statusMessage": "{{name}}: example guard"
+            "timeout": 10
           }
         ]
       }

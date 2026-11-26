@@ -1,75 +1,139 @@
-# Rules & workflows: always-on guardrails and /slash-commands
+# Rules and workflows
 
-*English | [Русский](rules-workflows.ru.md)*
+English | [Русский](rules-workflows.ru.md)
 
-## Rules — always-on behavioral guardrails
+Rules inject persistent or conditional instructions into the agent's context.
+Markdown `workflows/*.md`, by contrast, are **not loaded from plugins** in
+`agy 1.5.17+` and must be replaced with slash-only skills.
 
-Rules are plain markdown that constrains the agent while it works in a
-scope: coding style, API restrictions, safety protocols, output tone.
+## Where rules live
 
-### Where rules live
+Inside a plugin, Antigravity scans **only** two sources:
 
-| Location | Scope | Frontmatter |
+- `rules/` — flat 1-level directory scan (`rules/*.md`).
+- `rules.json` — optional JSON registry at the plugin root
+  (`{"entries": [{"path": "..."}]}`).
+
+Do **not** place `AGENTS.md` or `GEMINI.md` at the plugin root — `agy plugin
+validate --strict` warns that root instruction files inside plugins are never
+loaded. (Root `AGENTS.md` is a *workspace* convention, not a plugin convention.)
+
+## Plain always-on rules: `rules/AGENTS.md` and `rules/GEMINI.md`
+
+Google's recommended way to ship a single always-on rule in a plugin is an exact
+uppercase **`rules/AGENTS.md`** or **`rules/GEMINI.md`** file with **no YAML
+frontmatter**:
+
+```markdown
+# Project conventions
+
+- Keep changes minimal and covered by `node:test`.
+- Never log secrets or API tokens to stdout.
+```
+
+> **Case-sensitivity trap:** `rules/agents.md` or `rules/gemini.md` (lowercase)
+> without frontmatter is a **hard error** — only exact uppercase `AGENTS.md` and
+> `GEMINI.md` are exempt from the `trigger:` requirement. (`rules/README.md`
+> without frontmatter is ignored.)
+
+## Triggered rules (`rules/<name>.md`)
+
+Every other `.md` file in `rules/` **must** declare a valid `trigger:` in YAML
+frontmatter, or Antigravity rejects the rule with a hard error (`rules: 0`):
+
+| `trigger` | Required sibling key | When Antigravity injects it |
 |---|---|---|
-| `GEMINI.md` / `AGENTS.md` in any directory | that dir + subdirs (discovered by walking up from CWD to the repo root) | none — always active |
-| `.agents/rules/*.md` in a project | project | `trigger: always_on \| model_decision` (observed; `glob` likely — MEDIUM confidence) |
-| `plugins/<name>/rules/*.md` | while the plugin is enabled | none observed |
+| `always_on` | *(none)* | Every turn in every workspace where the plugin is enabled. |
+| `model_decision` | `description` | Only when the model decides the current task matches `description`. **Preferred for domain-specific plugins** (0 tokens on unrelated repos). |
+| `glob` | `globs` (or `glob`) | Only when the agent touches files matching the glob pattern. |
+| `manual` | *(none)* | Only when explicitly `@`-mentioned in Antigravity App. |
 
-Hierarchy: `GEMINI.md` (Antigravity-specific, highest) → `AGENTS.md`
-(portable cross-tool standard — the same file works in Cursor and Claude
-Code) → tool-specific files. Rules are deduplicated by resolved path — a
-rule loads once per conversation even if discovered via several routes.
-
-### Writing rules that work
-
-- Imperative, short lines. Every rule line costs context tokens in every
-  session — a rules file is a tax, keep it lean.
-- Group by concern (the reference plugin ships `safety.md`, `workflow.md`,
-  `output-style.md`).
-- State enforceable facts, not vibes: "never read .env files" beats "be
-  careful with secrets".
-- If a hook enforces the same thing (e.g. a danger-guard), say so in the
-  rule — the rule instructs, the hook enforces.
-
-## Workflows — files that become /slash-commands
-
-A workflow is a thin `.md` with a single frontmatter field:
+Example scoped rule (`trigger: model_decision`):
 
 ```markdown
 ---
-description: Plan non-trivial work before coding — numbered plan with scope and risks
+trigger: model_decision
+description: Apply when authoring or auditing Google Antigravity plugins.
 ---
 
-1. Load and follow the `my-plugin-plan` skill playbook.
-2. Restate the task: what changes, why, definition of done.
-3. Write the plan to a file; do not write code.
+# Plugin authoring standards
+
+- Author subagents in Markdown (`agents/*.md`), never TOML.
+- Run `lint.mjs --strict` and `agy plugin validate --strict --json` before shipping.
 ```
 
-- Filename → command: `my-plugin-plan.md` becomes `/my-plugin-plan`.
-- **`description` is required** — it's the command's help text (lint checks
-  it; note that `agy plugin validate` ignores workflows entirely — this
-  kit's linter is the only gate).
-- Keep workflows as thin aliases pointing at skills: the skill holds the
-  playbook, the workflow is the invocation surface. Don't duplicate logic.
-- Location: `<project>/.agents/workflows/` (Antigravity also reads
-  `.agent/workflows/` when that dir exists). Skills also
-  surface as slash commands automatically, so a workflow earns its place
-  only when it adds wording or arguments on top of the skill.
+### Glob syntax traps
 
-## Pitfalls
+Two sharp traps affect `trigger: glob`:
 
-- A rules file that grows into documentation — the agent pays for it every
-  turn. Move reference material into a skill's `references/`.
-- Workflow without `description` → broken /slash-command help (lint FAIL).
-- Duplicating the playbook in both the skill and the workflow → they drift.
-- Committing personal-preference rules into a team repo — keep those in
-  your global `~/.gemini/GEMINI.md`.
+1. **`globs` must be a single comma-separated YAML string — never a YAML
+   array.** Writing:
+   ```yaml
+   globs:
+     - "**/*.ts"
+     - "**/*.tsx"
+   ```
+   triggers a hard error: `cannot unmarshal !!seq into string`.
+2. **Never use brace alternation like `**/*.{ts,tsx}`.** Antigravity splits
+   `globs` on commas *before* passing patterns to `doublestar/v4`, which corrupts
+   `{ts,tsx}` into two broken fragments (`**/*.{ts` and `tsx}`). `agy plugin
+   validate` does not catch this, so `lint.mjs` emits a warning. Always expand
+   explicitly:
+   ```yaml
+   ---
+   trigger: glob
+   globs: "**/*.ts, **/*.tsx"
+   ---
+   ```
 
-## Checklist
+## Size limits and token budgets
 
-- [ ] rules: short, imperative, grouped by concern, deduplicated with hooks
-- [ ] AGENTS.md for anything that must work across tools
-- [ ] every workflow has a description and points at a skill
-- [ ] `lint` passes (rules non-empty, workflow frontmatter)
+Antigravity enforces two hard budgets on rules:
 
-*See also: [Skills](skills.md) · [Hooks](hooks.md)*
+- **24,000 bytes per rule file** (measured *after* expanding `@[label](path)`
+  file includes). Larger files warn and truncate.
+- **20,000-token `defaultRulesBudget`** across all always-on rules loaded in a
+  session. When the total exceeds the budget, rules are silently demoted to file
+  path pointers instead of full inline text.
+
+Keep always-on rules lean — under **~100–150 lines**. Move detailed reference
+tables, checklists, and walkthroughs into [Skills](skills.md) (`skills/<name>/SKILL.md`)
+or `references/` files that load on demand.
+
+## Why plugin `workflows/*.md` are dead (and what replaces them)
+
+In `agy 1.5.17+`, `workflows/*.md` and `commands/` inside a plugin are **never
+loaded** (`agy plugin validate --strict` fails with `plugins don't load Markdown
+workflows`).
+
+### Migrating slash commands to skills
+
+Convert every old `workflows/<cmd>.md` file into a slash-only skill at
+`skills/<cmd>/SKILL.md` with `disable-model-invocation: true`:
+
+```markdown
+---
+name: my-plugin-release
+description: Run the release checklist and verify the plugin before tagging.
+disable-model-invocation: true
+---
+
+# /my-plugin-release
+
+1. Run `npm test`.
+2. Run `agy plugin validate --strict --json plugins/my-plugin`.
+3. Report any findings before creating a git tag.
+```
+
+Users invoke it with `/my-plugin-release`, and `disable-model-invocation: true`
+prevents the model from triggering it spontaneously during unrelated tasks.
+
+### Multi-agent orchestration with `run_workflow`
+
+"Workflows" in `agy 1.5.17` refers to **dynamic Python orchestration scripts**
+executed via the built-in `run_workflow` tool (fanning out parallel subagents,
+pipelines, and aggregation). If your plugin automates multi-agent pipelines,
+document the invocation pattern in a skill or bundle a script under
+`skills/<name>/scripts/` instead of creating a top-level `workflows/` folder.
+
+Next: [Skills](skills.md) · [Plugin manifest & layouts](plugin-manifest.md) · [Internals](../internals.md)
