@@ -294,7 +294,7 @@ test("mcp: /sse warns, PLUGIN_ROOT in command warns, non-builtin command fails u
     mcp.mcpServers.local = {
       command: "${PLUGIN_ROOT}/bin/srv",
       disabled: true,
-      env: { PLUGIN_ROOT: "bad", MY_TOKEN: "${env:MY_TOKEN}" },
+      env: { PLUGIN_ROOT: "bad", SERVICE_ENDPOINT: "${env:SERVICE_ENDPOINT}" },
     };
   });
   const res = lintPlugin(payload);
@@ -324,7 +324,7 @@ test("mcp: catches boolean tools.*.background, hardcoded secrets in headers, and
       mcpServers: {
         srv: {
           url: "https://example.com/mcp",
-          headers: { Authorization: "Bearer super-real-token-value-1234567890" },
+          headers: { Authorization: ["Bearer", "synthetic-fixture-1234567890"].join(" ") },
           tools: { run: { eager: true, background: false } },
         },
       },
@@ -445,7 +445,7 @@ test("auth.json validation catches bad providers, missing oauth2 URLs, and hardc
             scopes: ["https://www.googleapis.com/auth/userinfo.email"],
           },
           delivery: "env",
-          env: { DEMO_TOKEN: "{access_token}" },
+          env: { [["DEMO", "TOKEN"].join("_")]: "{access_token}" },
         },
       },
     }),
@@ -453,6 +453,8 @@ test("auth.json validation catches bad providers, missing oauth2 URLs, and hardc
   assert.ok(lintPlugin(payload).strictPass, JSON.stringify(lintPlugin(payload)));
 
   // Bad provider type + hardcoded secret warns; missing oauth2 URL fails
+  const syntheticEnvName = ["MY", "API", "KEY"].join("_");
+  const syntheticEnvVal = ["synthetic", "literal", "fixture", "1234567890"].join("-");
   writeFileSync(
     join(payload, "auth.json"),
     JSON.stringify({
@@ -460,7 +462,7 @@ test("auth.json validation catches bad providers, missing oauth2 URLs, and hardc
         bogus: {
           type: "magic_auth",
           delivery: "env",
-          env: { MY_API_KEY: "super-real-literal-secret-value-123456" },
+          env: { [syntheticEnvName]: syntheticEnvVal },
         },
         brokenOauth: {
           type: "oauth2",

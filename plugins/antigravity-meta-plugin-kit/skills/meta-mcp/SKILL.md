@@ -77,5 +77,6 @@ MCP overhead isn't justified).
 - "`agy plugin validate` didn't complain about my `/sse` URL" -> `agy` doesn't
   inspect URL paths, but legacy HTTP+SSE fails at runtime; use Streamable HTTP
   or `mcp-remote`.
-- "I'll pass `API_KEY: "${env:API_KEY}"`" -> Antigravity does not expand
-  `${env:...}` in plugin MCP configs; declare it in `variables[]` instead.
+- "I'll pass `${env:...}` inside `mcp_config.json` `env`" -> Antigravity does
+  not expand `${env:...}` in plugin MCP configs; declare it in `variables[]`
+  instead.

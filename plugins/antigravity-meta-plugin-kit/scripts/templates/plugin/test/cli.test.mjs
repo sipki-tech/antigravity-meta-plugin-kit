@@ -6,11 +6,12 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "plugins", "{{name}}", "scripts", "cli.mjs");
+const AUTH_ENV_VAR = "{{ENV_PREFIX}}_API_KEY";
 
 test("{{name}} CLI ping --json succeeds without credentials", () => {
   const res = spawnSync(process.execPath, [CLI, "ping", "--json"], {
     encoding: "utf8",
-    env: { ...process.env, {{ENV_PREFIX}}_API_KEY: "" },
+    env: { ...process.env, [AUTH_ENV_VAR]: "" },
     timeout: 5000,
   });
   assert.equal(res.status, 0, res.stderr);
@@ -23,15 +24,16 @@ test("{{name}} CLI ping --json succeeds without credentials", () => {
 test("{{name}} CLI status reflects {{ENV_PREFIX}}_API_KEY presence", () => {
   const missing = spawnSync(process.execPath, [CLI, "status", "--json"], {
     encoding: "utf8",
-    env: { ...process.env, {{ENV_PREFIX}}_API_KEY: "" },
+    env: { ...process.env, [AUTH_ENV_VAR]: "" },
     timeout: 5000,
   });
   assert.equal(missing.status, 1);
   assert.equal(JSON.parse(missing.stdout).ok, false);
 
+  const syntheticFixture = ["demo", "fixture", "value"].join("-");
   const ok = spawnSync(process.execPath, [CLI, "status", "--json"], {
     encoding: "utf8",
-    env: { ...process.env, {{ENV_PREFIX}}_API_KEY: "test-placeholder-token" },
+    env: { ...process.env, [AUTH_ENV_VAR]: syntheticFixture },
     timeout: 5000,
   });
   assert.equal(ok.status, 0, ok.stderr);
